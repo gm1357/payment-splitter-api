@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client"
   output   = "../generated/prisma"
@@ -12,4 +6,88 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model Group {
+  id          String        @id @default(uuid())
+  name        String
+  createdBy   String
+  creator     Person        @relation("GroupCreator", fields: [createdBy], references: [id])
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  deletedAt   DateTime?
+  expenses    Expense[]
+  members     GroupMember[]
+  settlements Settlement[]
+}
+
+model Person {
+  id            String        @id @default(uuid())
+  name          String
+  email         String        @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  deletedAt     DateTime?
+  createdGroups Group[]       @relation("GroupCreator")
+  memberships   GroupMember[]
+}
+
+model GroupMember {
+  id              String         @id @default(uuid())
+  groupId         String
+  group           Group          @relation(fields: [groupId], references: [id])
+  personId        String
+  person          Person         @relation(fields: [personId], references: [id])
+  joinedAt        DateTime       @default(now())
+  expensesPaid    Expense[]      @relation("ExpensePayer")
+  expensesCreated Expense[]      @relation("ExpenseCreator")
+  expenseSplits   ExpenseSplit[]
+  settlementsFrom Settlement[]   @relation("SettlementFrom")
+  settlementsTo   Settlement[]   @relation("SettlementTo")
+}
+
+enum SplitType {
+  EQUAL_ALL
+  PARTIAL
+}
+
+model Expense {
+  id          String         @id @default(uuid())
+  groupId     String
+  group       Group          @relation(fields: [groupId], references: [id])
+  createdBy   String
+  creator     GroupMember    @relation("ExpenseCreator", fields: [createdBy], references: [id])
+  paidBy      String
+  payer       GroupMember    @relation("ExpensePayer", fields: [paidBy], references: [id])
+  description String
+  centAmount  Int
+  splitType   SplitType      @default(EQUAL_ALL)
+  expenseDate DateTime       @default(now())
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+  splits      ExpenseSplit[]
+}
+
+model ExpenseSplit {
+  id            String      @id @default(uuid())
+  expenseId     String
+  expense       Expense     @relation(fields: [expenseId], references: [id])
+  groupMemberId String
+  groupMember   GroupMember @relation(fields: [groupMemberId], references: [id])
+  centAmount    Int
+}
+
+model Settlement {
+  id           String      @id @default(uuid())
+  groupId      String
+  group        Group       @relation(fields: [groupId], references: [id])
+  fromMemberId String
+  fromMember   GroupMember @relation("SettlementFrom", fields: [fromMemberId], references: [id])
+  toMemberId   String
+  toMember     GroupMember @relation("SettlementTo", fields: [toMemberId], references: [id])
+  centAmount   Int
+  settledAt    DateTime    @default(now())
+  createdAt    DateTime    @default(now())
+  notes        String?
 }
