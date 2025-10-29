@@ -13,7 +13,7 @@ export class UserService {
 
   async create(createUserDto: CreateUserDto) {
     const existingUser = await this.prisma.user.findUnique({
-      where: { email: createUserDto.email },
+      where: { email: createUserDto.email, deletedAt: null },
     });
 
     if (existingUser) {
@@ -31,14 +31,15 @@ export class UserService {
 
   findAll() {
     return this.prisma.user.findMany({
-      omit: { password: true },
+      omit: { password: true, deletedAt: true },
+      where: { deletedAt: null },
     });
   }
 
   findOne(id: string) {
     return this.prisma.user.findUnique({
-      where: { id },
-      omit: { password: true },
+      where: { id, deletedAt: null },
+      omit: { password: true, deletedAt: true },
     });
   }
 
@@ -47,6 +48,9 @@ export class UserService {
   }
 
   remove(id: string) {
-    return this.prisma.user.delete({ where: { id } });
+    return this.prisma.user.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
   }
 }
