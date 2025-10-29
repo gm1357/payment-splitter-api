@@ -1,6 +1,6 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider     = "prisma-client"
+  output       = "../generated/prisma"
   moduleFormat = "cjs"
 }
 
@@ -13,7 +13,7 @@ model Group {
   id          String        @id @default(uuid())
   name        String
   createdBy   String
-  creator     Person        @relation("GroupCreator", fields: [createdBy], references: [id])
+  creator     User          @relation("GroupCreator", fields: [createdBy], references: [id])
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
   deletedAt   DateTime?
@@ -22,7 +22,7 @@ model Group {
   settlements Settlement[]
 }
 
-model Person {
+model User {
   id            String        @id @default(uuid())
   name          String
   email         String        @unique
@@ -37,8 +37,8 @@ model GroupMember {
   id              String         @id @default(uuid())
   groupId         String
   group           Group          @relation(fields: [groupId], references: [id])
-  personId        String
-  person          Person         @relation(fields: [personId], references: [id])
+  userId          String
+  user            User           @relation(fields: [userId], references: [id])
   joinedAt        DateTime       @default(now())
   expensesPaid    Expense[]      @relation("ExpensePayer")
   expensesCreated Expense[]      @relation("ExpenseCreator")
