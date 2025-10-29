@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  forwardRef,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -8,6 +13,7 @@ import { AuthService } from 'src/auth/auth.service';
 export class UserService {
   constructor(
     private prisma: PrismaService,
+    @Inject(forwardRef(() => AuthService))
     private authService: AuthService,
   ) {}
 
@@ -40,6 +46,13 @@ export class UserService {
     return this.prisma.user.findUnique({
       where: { id, deletedAt: null },
       omit: { password: true, deletedAt: true },
+    });
+  }
+
+  findOneByEmail(email: string, getPassword = false) {
+    return this.prisma.user.findUnique({
+      where: { email, deletedAt: null },
+      omit: { password: !getPassword, deletedAt: true },
     });
   }
 
