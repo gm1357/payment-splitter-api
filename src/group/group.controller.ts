@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   Post,
   Req,
@@ -36,5 +38,20 @@ export class GroupController {
   joinGroup(@Param('id') groupId: string, @Req() request: Request) {
     const user = request.user as JWTUser;
     return this.groupService.joinGroup(groupId, user.id);
+  }
+
+  @Post(':id/leave')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  leaveGroup(@Param('id') groupId: string, @Req() request: Request) {
+    const user = request.user as JWTUser;
+    return this.groupService.leaveGroup(groupId, user.id);
+  }
+
+  @Get(':id/members')
+  @UseGuards(JwtAuthGuard)
+  listGroupMembers(@Param('id') groupId: string, @Req() request: Request) {
+    const user = request.user as JWTUser;
+    return this.groupService.listGroupMembers(groupId, user.id);
   }
 }

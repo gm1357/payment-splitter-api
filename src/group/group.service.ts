@@ -59,4 +59,61 @@ export class GroupService {
       },
     });
   }
+
+  listGroupMembers(groupId: string, userId: string) {
+    return this.prisma.groupMember.findMany({
+      where: {
+        groupId,
+        group: {
+          members: {
+            some: {
+              userId,
+            },
+          },
+        },
+      },
+      omit: {
+        userId: true,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
+
+  async leaveGroup(groupId: string, userId: string) {
+    const group = await this.prisma.group.findUnique({
+      where: { id: groupId },
+      include: {
+        members: {
+          select: {
+            userId: true,
+          },
+        },
+      },
+    });
+
+    if (!group) {
+      throw new BadRequestException('Group does not exits');
+    }
+
+    if (group.members.some((m) => m.userId === userId)) {
+      await this.prisma.groupMember.delete({
+        where: {
+          groupId_userId: {
+            groupId,
+            userId,
+          },
+        },
+      });
+    }
+
+    return;
+  }
 }

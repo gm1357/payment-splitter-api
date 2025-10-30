@@ -46,6 +46,8 @@ model GroupMember {
   expenseSplits   ExpenseSplit[]
   settlementsFrom Settlement[]   @relation("SettlementFrom")
   settlementsTo   Settlement[]   @relation("SettlementTo")
+
+  @@unique([groupId, userId])
 }
 
 enum SplitType {
