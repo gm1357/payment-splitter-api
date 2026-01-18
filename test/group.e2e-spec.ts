@@ -78,7 +78,9 @@ describe('GroupController (e2e)', () => {
         })
         .expectStatus(201)
         .expect((ctx) => {
-          expect(ctx.res.body.id).toMatch(/^[0-9a-f-]{36}$/);
+          expect(ctx.res.body.id).toMatch(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+          );
           expect(ctx.res.body.name).toBe('Trip to Paris');
           expect(ctx.res.body.createdBy).toBe(user1.id);
         });

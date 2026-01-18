@@ -27,7 +27,9 @@ describe('UserController (e2e)', () => {
         })
         .expectStatus(201)
         .expect((ctx) => {
-          expect(ctx.res.body.id).toMatch(/^[0-9a-f-]{36}$/);
+          expect(ctx.res.body.id).toMatch(
+            /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+          );
           expect(ctx.res.body.name).toBe('John Doe');
           expect(ctx.res.body.email).toBe('john@example.com');
           expect(ctx.res.body.password).toBeUndefined();
@@ -69,21 +71,17 @@ describe('UserController (e2e)', () => {
 
   describe('GET /user', () => {
     it('should return all users', async () => {
-      await spec()
-        .post('/user')
-        .withJson({
-          name: 'User 1',
-          email: 'user1@example.com',
-          password: 'password123',
-        });
+      await spec().post('/user').withJson({
+        name: 'User 1',
+        email: 'user1@example.com',
+        password: 'password123',
+      });
 
-      await spec()
-        .post('/user')
-        .withJson({
-          name: 'User 2',
-          email: 'user2@example.com',
-          password: 'password123',
-        });
+      await spec().post('/user').withJson({
+        name: 'User 2',
+        email: 'user2@example.com',
+        password: 'password123',
+      });
 
       await spec()
         .get('/user')
