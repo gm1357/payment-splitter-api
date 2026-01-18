@@ -3,6 +3,7 @@ import {
   forwardRef,
   Inject,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -32,6 +33,7 @@ export class UserService {
 
     return this.prisma.user.create({
       data: { ...createUserDto, password: hashedPassword },
+      omit: { password: true, deletedAt: true },
     });
   }
 
@@ -42,11 +44,17 @@ export class UserService {
     });
   }
 
-  findOne(id: string) {
-    return this.prisma.user.findUnique({
+  async findOne(id: string) {
+    const user = await this.prisma.user.findUnique({
       where: { id, deletedAt: null },
       omit: { password: true, deletedAt: true },
     });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user;
   }
 
   findOneByEmail(email: string, getPassword = false) {
