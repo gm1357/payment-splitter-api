@@ -1,0 +1,129 @@
+# Payment Splitter API - Implementation Plan
+
+## Requirements Overview
+
+Based on the take-home assignment for a peer-to-peer payment splitter backend system.
+
+---
+
+## 1. Group Management
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Create expense groups | ✅ Completed | `POST /group` |
+| Group has name | ✅ Completed | `name` field in Group model |
+| Group members have name | ✅ Completed | Via User model relationship |
+| Join group | ✅ Completed | `POST /group/:id/join` |
+| Leave group | ✅ Completed | `POST /group/:id/leave` |
+| List group members | ✅ Completed | `GET /group/:id/members` |
+| List user's groups | ✅ Completed | `GET /group/joined` |
+
+---
+
+## 2. Add Expenses
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Record expenses to a group | ✅ Completed | `POST /expense` |
+| Expense has description | ✅ Completed | `description` field |
+| Expense has dollar amount | ✅ Completed | `centAmount` field (stored as cents) |
+| Expense has payer | ✅ Completed | `paidBy` field |
+| Deterministic remainder handling | ✅ Completed | First members (by join date) receive extra cents |
+| Equal split among all members | ✅ Completed | Default behavior |
+| **Partial split (exclude members)** | ❌ Missing | Schema has `SplitType.PARTIAL` but not implemented |
+
+### Missing for Partial Split:
+- Add `excludedMemberIds` or `includedMemberIds` to CreateExpenseDto
+- Update service to filter members and set `splitType: PARTIAL`
+
+---
+
+## 3. View Balances
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| View each member's net balance | ❌ Missing | No endpoint exists |
+| Positive balance = owed to member | ❌ Missing | |
+| Negative balance = member owes | ❌ Missing | |
+
+### Implementation needed:
+- `GET /group/:id/balances` endpoint
+- Calculate: (sum of expenses paid) - (sum of splits owed) + (settlements received) - (settlements paid)
+
+---
+
+## 4. Settle Debts
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Record settlements between members | ❌ Missing | Schema exists (`Settlement` model) |
+| Update balances after settlement | ❌ Missing | Depends on balance calculation |
+
+### Implementation needed:
+- `POST /settlement` endpoint
+- CreateSettlementDto with `groupId`, `toMemberId`, `centAmount`
+- Validate both members belong to group
+
+---
+
+## 5. File Upload Feature (CSV)
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Upload CSV with batch expenses | ❌ Missing | |
+| Cloud storage integration (AWS S3) | ❌ Missing | |
+| Process uploaded file | ❌ Missing | |
+
+### Implementation needed:
+- AWS S3 integration for file storage
+- `POST /expense/upload` endpoint (multipart/form-data)
+- CSV parsing and validation
+- Batch expense creation
+- Consider: SQS for async processing at scale
+
+---
+
+## 6. Email Notification
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Notify on expense recorded | ❌ Missing | |
+| Notify on debt settled | ❌ Missing | |
+
+### Implementation needed:
+- AWS SES or similar email service integration
+- Notification service module
+- Event-driven architecture (emit events on expense/settlement creation)
+- Consider: SQS/SNS for decoupling and handling high loads
+
+---
+
+## Summary
+
+| Category | Progress |
+|----------|----------|
+| Group Management | ✅ 100% Complete |
+| Add Expenses | ⏳ 80% (missing partial split) |
+| View Balances | ❌ 0% |
+| Settle Debts | ❌ 0% |
+| File Upload | ❌ 0% |
+| Email Notification | ❌ 0% |
+
+---
+
+## Suggested Implementation Order
+
+1. **Partial Split** - Small addition to existing expense logic
+2. **Settle Debts** - Schema already exists, straightforward CRUD
+3. **View Balances** - Depends on expenses and settlements being complete
+4. **Email Notification** - Can be added as event listeners
+5. **File Upload** - Most complex, requires AWS integration
+
+---
+
+## Architecture Notes
+
+- **Database**: PostgreSQL with Prisma ORM ✅
+- **Authentication**: JWT + Passport (implemented, though not required by assignment)
+- **Validation**: class-validator with global ValidationPipe ✅
+- **Testing**: Jest with mocked Prisma ✅
