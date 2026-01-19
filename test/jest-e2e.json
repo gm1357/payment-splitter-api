@@ -3,7 +3,15 @@
   "rootDir": ".",
   "testEnvironment": "node",
   "testRegex": ".e2e-spec.ts$",
+  "maxWorkers": 1,
   "transform": {
-    "^.+\\.(t|j)s$": "ts-jest"
+    "^.+\\.ts$": "ts-jest"
+  },
+  "moduleNameMapper": {
+    "^src/(.*)$": "<rootDir>/../src/$1",
+    "^generated/prisma/client$": "<rootDir>/../generated/prisma/client.ts",
+    "^\\./(internal|models)/(.+)\\.js$": "<rootDir>/../generated/prisma/$1/$2.ts",
+    "^\\./enums\\.js$": "<rootDir>/../generated/prisma/enums.ts",
+    "^generated/(.*)$": "<rootDir>/../generated/$1"
   }
 }
