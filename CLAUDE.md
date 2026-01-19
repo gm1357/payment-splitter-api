@@ -69,4 +69,51 @@ JWT_SECRET=<your_secret>
 
 ## Testing Patterns
 
-Unit tests mock PrismaService. See `expense.service.spec.ts` for mocking patterns with Jest.
+### Test Structure
+- **Unit tests**: Co-located with source files (`src/**/*.spec.ts`)
+- **Integration tests**: Separate folder (`test/integration/*.e2e-spec.ts`)
+
+### Unit Tests
+Located alongside source files (e.g., `src/group/group.service.spec.ts`). Mock dependencies using Jest:
+
+```typescript
+const mockPrismaService = {
+  group: {
+    create: jest.fn(),
+    findUnique: jest.fn(),
+  },
+};
+
+const module = await Test.createTestingModule({
+  providers: [
+    GroupService,
+    { provide: PrismaService, useValue: mockPrismaService },
+  ],
+}).compile();
+```
+
+### Integration Tests
+Located in `test/integration/`. Uses pactum for HTTP assertions and shared utilities in `test-utils.ts`:
+
+- `createTestApp()` - Bootstraps NestJS app on random port
+- `resetDatabase(app)` - Clears all tables between tests
+- `spec()` - Pactum request builder with base URL configured
+
+```typescript
+beforeAll(async () => {
+  app = await createTestApp();
+});
+
+beforeEach(async () => {
+  await resetDatabase(app);
+});
+
+it('should create a user', async () => {
+  await spec()
+    .post('/user')
+    .withJson({ name: 'John', email: 'john@example.com', password: 'pass' })
+    .expectStatus(201);
+});
+```
+
+Integration tests require a running PostgreSQL database.

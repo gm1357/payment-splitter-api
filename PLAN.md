@@ -126,4 +126,11 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 - **Database**: PostgreSQL with Prisma ORM ✅
 - **Authentication**: JWT + Passport (implemented, though not required by assignment)
 - **Validation**: class-validator with global ValidationPipe ✅
-- **Testing**: Jest with mocked Prisma ✅
+- **Testing:**
+  - Unit tests: Co-located with source (`src/**/*.spec.ts`), Jest with mocked dependencies
+  - Integration tests: `test/integration/*.e2e-spec.ts`, uses pactum for HTTP assertions
+  - Test utilities: `createTestApp()`, `resetDatabase()`, `spec()` in `test-utils.ts`
+- **CI/CD:**
+  - GitHub Actions workflows in `.github/workflows/`
+  - `unit-tests.yml` - Runs on push/PR, no database required
+  - `e2e-tests.yml` - Runs on push/PR, uses PostgreSQL service container
