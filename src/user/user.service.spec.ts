@@ -6,8 +6,6 @@ import { AuthService } from 'src/auth/auth.service';
 
 describe('UserService', () => {
   let service: UserService;
-  let prisma: jest.Mocked<PrismaService>;
-  let authService: jest.Mocked<AuthService>;
 
   const mockPrismaService = {
     user: {
@@ -32,8 +30,6 @@ describe('UserService', () => {
     }).compile();
 
     service = module.get<UserService>(UserService);
-    prisma = module.get(PrismaService);
-    authService = module.get(AuthService);
 
     jest.clearAllMocks();
   });
@@ -199,7 +195,7 @@ describe('UserService', () => {
       const deletedUser = {
         id: userId,
         name: 'John',
-        deletedAt: expect.any(Date),
+        deletedAt: expect.any(Date) as Date,
       };
       mockPrismaService.user.update.mockResolvedValue(deletedUser);
 
@@ -207,7 +203,7 @@ describe('UserService', () => {
 
       expect(mockPrismaService.user.update).toHaveBeenCalledWith({
         where: { id: userId },
-        data: { deletedAt: expect.any(Date) },
+        data: { deletedAt: expect.any(Date) as Date },
       });
     });
   });

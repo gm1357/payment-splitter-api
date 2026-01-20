@@ -1,6 +1,11 @@
 import { INestApplication } from '@nestjs/common';
 import { createTestApp, resetDatabase, spec, TestUser } from './test-utils';
 
+interface ExpenseSplit {
+  centAmount: number;
+  groupMemberId: string;
+}
+
 describe('ExpenseController (e2e)', () => {
   let app: INestApplication;
   let user1: TestUser;
@@ -115,7 +120,9 @@ describe('ExpenseController (e2e)', () => {
           expect(ctx.res.body.splits).toHaveLength(2);
           // Each member should owe 5000 cents
           expect(
-            ctx.res.body.splits.every((s: any) => s.centAmount === 5000),
+            (ctx.res.body.splits as ExpenseSplit[]).every(
+              (s) => s.centAmount === 5000,
+            ),
           ).toBe(true);
         });
     });
@@ -131,12 +138,10 @@ describe('ExpenseController (e2e)', () => {
         })
         .expectStatus(201)
         .expect((ctx) => {
-          const splits = ctx.res.body.splits;
+          const splits = ctx.res.body.splits as ExpenseSplit[];
           expect(splits).toHaveLength(2);
           // First member (user1 joined first) gets 5001, second gets 5000
-          const amounts = splits
-            .map((s: any) => s.centAmount)
-            .sort((a: number, b: number) => b - a);
+          const amounts = splits.map((s) => s.centAmount).sort((a, b) => b - a);
           expect(amounts).toEqual([5001, 5000]);
         });
     });

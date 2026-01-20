@@ -111,18 +111,21 @@ describe('ExpenseService', () => {
       // First 2 members get 3334, third gets 3333
       await service.create({ ...createExpenseDto, centAmount: 10001 }, userId);
 
-      expect(mockPrismaService.expense.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          splits: {
-            create: [
-              { groupMemberId: 'member-1', centAmount: 3334 },
-              { groupMemberId: 'member-2', centAmount: 3334 },
-              { groupMemberId: 'member-3', centAmount: 3333 },
-            ],
-          },
+      expect(mockPrismaService.expense.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          data: expect.objectContaining({
+            splits: {
+              create: [
+                { groupMemberId: 'member-1', centAmount: 3334 },
+                { groupMemberId: 'member-2', centAmount: 3334 },
+                { groupMemberId: 'member-3', centAmount: 3333 },
+              ],
+            },
+          }),
+          include: { splits: true },
         }),
-        include: { splits: true },
-      });
+      );
     });
 
     it('should use specified paidByMemberId when provided', async () => {
@@ -143,12 +146,15 @@ describe('ExpenseService', () => {
         userId,
       );
 
-      expect(mockPrismaService.expense.create).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          paidBy: 'member-2',
+      expect(mockPrismaService.expense.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+          data: expect.objectContaining({
+            paidBy: 'member-2',
+          }),
+          include: { splits: true },
         }),
-        include: { splits: true },
-      });
+      );
     });
 
     it('should throw BadRequestException when group does not exist', async () => {

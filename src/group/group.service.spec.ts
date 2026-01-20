@@ -5,7 +5,6 @@ import { PrismaService } from 'src/prisma/prisma.service';
 
 describe('GroupService', () => {
   let service: GroupService;
-  let prisma: jest.Mocked<PrismaService>;
 
   const mockPrismaService = {
     group: {
@@ -30,7 +29,6 @@ describe('GroupService', () => {
     }).compile();
 
     service = module.get<GroupService>(GroupService);
-    prisma = module.get(PrismaService);
 
     jest.clearAllMocks();
   });
