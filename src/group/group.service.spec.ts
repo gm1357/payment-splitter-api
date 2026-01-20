@@ -5,7 +5,6 @@ import { PrismaService } from 'src/prisma/prisma.service';
 
 describe('GroupService', () => {
   let service: GroupService;
-  let prisma: jest.Mocked<PrismaService>;
 
   const mockPrismaService = {
     group: {
@@ -30,7 +29,6 @@ describe('GroupService', () => {
     }).compile();
 
     service = module.get<GroupService>(GroupService);
-    prisma = module.get(PrismaService);
 
     jest.clearAllMocks();
   });
@@ -98,7 +96,9 @@ describe('GroupService', () => {
       const expectedMembership = { groupId, userId };
       mockPrismaService.group.findUnique.mockResolvedValue({ id: groupId });
       mockPrismaService.groupMember.findFirst.mockResolvedValue(null);
-      mockPrismaService.groupMember.create.mockResolvedValue(expectedMembership);
+      mockPrismaService.groupMember.create.mockResolvedValue(
+        expectedMembership,
+      );
 
       const result = await service.joinGroup(groupId, userId);
 
@@ -178,7 +178,10 @@ describe('GroupService', () => {
       const groupId = 'group-123';
       const userId = 'user-123';
       const expectedMembers = [
-        { groupId, user: { id: userId, name: 'User 1', email: 'user1@test.com' } },
+        {
+          groupId,
+          user: { id: userId, name: 'User 1', email: 'user1@test.com' },
+        },
       ];
       mockPrismaService.groupMember.findMany.mockResolvedValue(expectedMembers);
 

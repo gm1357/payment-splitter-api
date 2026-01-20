@@ -25,11 +25,12 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 | Feature | Status | Notes |
 |---------|--------|-------|
 | Record expenses to a group | ✅ Completed | `POST /expense` |
+| List expenses for a group | ✅ Completed | `GET /expense/group/:groupId` (member-only) |
 | Expense has description | ✅ Completed | `description` field |
 | Expense has dollar amount | ✅ Completed | `centAmount` field (stored as cents) |
-| Expense has payer | ✅ Completed | `paidBy` field |
+| Expense has payer | ✅ Completed | `paidBy` field, optional `paidByMemberId` in DTO |
 | Deterministic remainder handling | ✅ Completed | First members (by join date) receive extra cents |
-| Equal split among all members | ✅ Completed | Default behavior |
+| Equal split among all members | ✅ Completed | Default behavior with `splitType: EQUAL_ALL` |
 | **Partial split (exclude members)** | ❌ Missing | Schema has `SplitType.PARTIAL` but not implemented |
 
 ### Missing for Partial Split:
@@ -103,7 +104,7 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 | Category | Progress |
 |----------|----------|
 | Group Management | ✅ 100% Complete |
-| Add Expenses | ⏳ 80% (missing partial split) |
+| Add Expenses | ⏳ 85% (missing partial split) |
 | View Balances | ❌ 0% |
 | Settle Debts | ❌ 0% |
 | File Upload | ❌ 0% |
@@ -127,8 +128,8 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 - **Authentication**: JWT + Passport (implemented, though not required by assignment)
 - **Validation**: class-validator with global ValidationPipe ✅
 - **Testing:**
-  - Unit tests: Co-located with source (`src/**/*.spec.ts`), Jest with mocked dependencies
-  - Integration tests: `test/integration/*.e2e-spec.ts`, uses pactum for HTTP assertions
+  - Unit tests: Co-located with source (`src/**/*.spec.ts`), Jest with mocked dependencies (32 tests)
+  - Integration tests: `test/integration/*.e2e-spec.ts`, uses pactum for HTTP assertions (40 tests)
   - Test utilities: `createTestApp()`, `resetDatabase()`, `spec()` in `test-utils.ts`
 - **CI/CD:**
   - GitHub Actions workflows in `.github/workflows/`

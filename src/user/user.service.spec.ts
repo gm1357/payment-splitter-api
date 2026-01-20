@@ -6,8 +6,6 @@ import { AuthService } from 'src/auth/auth.service';
 
 describe('UserService', () => {
   let service: UserService;
-  let prisma: jest.Mocked<PrismaService>;
-  let authService: jest.Mocked<AuthService>;
 
   const mockPrismaService = {
     user: {
@@ -32,8 +30,6 @@ describe('UserService', () => {
     }).compile();
 
     service = module.get<UserService>(UserService);
-    prisma = module.get(PrismaService);
-    authService = module.get(AuthService);
 
     jest.clearAllMocks();
   });
@@ -54,7 +50,9 @@ describe('UserService', () => {
       await expect(service.create(createUserDto)).rejects.toThrow(
         BadRequestException,
       );
-      await expect(service.create(createUserDto)).rejects.toThrow('invalid email');
+      await expect(service.create(createUserDto)).rejects.toThrow(
+        'invalid email',
+      );
     });
 
     it('should hash password before saving', async () => {
@@ -174,7 +172,11 @@ describe('UserService', () => {
     it('should update user with provided data', async () => {
       const userId = 'user-123';
       const updateUserDto = { name: 'Updated Name' };
-      const updatedUser = { id: userId, name: 'Updated Name', email: 'john@example.com' };
+      const updatedUser = {
+        id: userId,
+        name: 'Updated Name',
+        email: 'john@example.com',
+      };
       mockPrismaService.user.update.mockResolvedValue(updatedUser);
 
       const result = await service.update(userId, updateUserDto);
@@ -193,7 +195,7 @@ describe('UserService', () => {
       const deletedUser = {
         id: userId,
         name: 'John',
-        deletedAt: expect.any(Date),
+        deletedAt: expect.any(Date) as Date,
       };
       mockPrismaService.user.update.mockResolvedValue(deletedUser);
 
@@ -201,7 +203,7 @@ describe('UserService', () => {
 
       expect(mockPrismaService.user.update).toHaveBeenCalledWith({
         where: { id: userId },
-        data: { deletedAt: expect.any(Date) },
+        data: { deletedAt: expect.any(Date) as Date },
       });
     });
   });
