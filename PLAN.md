@@ -57,13 +57,14 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Record settlements between members | ❌ Missing | Schema exists (`Settlement` model) |
+| Record settlements between members | ✅ Completed | `POST /settlement` |
+| List settlements for a group | ✅ Completed | `GET /settlement/group/:groupId` |
 | Update balances after settlement | ❌ Missing | Depends on balance calculation |
 
-### Implementation needed:
-- `POST /settlement` endpoint
-- CreateSettlementDto with `groupId`, `toMemberId`, `centAmount`
-- Validate both members belong to group
+### Implementation details:
+- `POST /settlement` - Creates a settlement with `groupId`, `fromMemberId`, `toMemberId`, `centAmount`, optional `notes`
+- `GET /settlement/group/:groupId` - Lists settlements ordered by `settledAt` desc, includes member details
+- Validates: group exists, requester is member, fromMember and toMember belong to group, no self-settlement
 
 ---
 
@@ -106,7 +107,7 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 | Group Management | ✅ 100% Complete |
 | Add Expenses | ⏳ 85% (missing partial split) |
 | View Balances | ❌ 0% |
-| Settle Debts | ❌ 0% |
+| Settle Debts | ⏳ 66% (missing balance update) |
 | File Upload | ❌ 0% |
 | Email Notification | ❌ 0% |
 
@@ -115,10 +116,9 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 ## Suggested Implementation Order
 
 1. **Partial Split** - Small addition to existing expense logic
-2. **Settle Debts** - Schema already exists, straightforward CRUD
-3. **View Balances** - Depends on expenses and settlements being complete
-4. **Email Notification** - Can be added as event listeners
-5. **File Upload** - Most complex, requires AWS integration
+2. **View Balances** - Depends on expenses and settlements being complete (both now exist)
+3. **Email Notification** - Can be added as event listeners
+4. **File Upload** - Most complex, requires AWS integration
 
 ---
 
@@ -128,8 +128,8 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 - **Authentication**: JWT + Passport (implemented, though not required by assignment)
 - **Validation**: class-validator with global ValidationPipe ✅
 - **Testing:**
-  - Unit tests: Co-located with source (`src/**/*.spec.ts`), Jest with mocked dependencies (32 tests)
-  - Integration tests: `test/integration/*.e2e-spec.ts`, uses pactum for HTTP assertions (40 tests)
+  - Unit tests: Co-located with source (`src/**/*.spec.ts`), Jest with mocked dependencies (43 tests)
+  - Integration tests: `test/integration/*.e2e-spec.ts`, uses pactum for HTTP assertions (57 tests)
   - Test utilities: `createTestApp()`, `resetDatabase()`, `spec()` in `test-utils.ts`
 - **CI/CD:**
   - GitHub Actions workflows in `.github/workflows/`
