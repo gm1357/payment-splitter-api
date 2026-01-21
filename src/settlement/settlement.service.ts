@@ -80,11 +80,12 @@ export class SettlementService {
   }
 
   async listByGroup(groupId: string, userId: string) {
-    // Only return settlements if user is a member of the group
+    // Only return settlements if user is a member of the group and group is not deleted
     return this.prisma.settlement.findMany({
       where: {
         groupId,
         group: {
+          deletedAt: null,
           members: {
             some: {
               userId,

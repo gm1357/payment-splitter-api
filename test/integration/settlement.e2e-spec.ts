@@ -1,5 +1,6 @@
 import { INestApplication } from '@nestjs/common';
 import { createTestApp, resetDatabase, spec, TestUser } from './test-utils';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 describe('SettlementController (e2e)', () => {
   let app: INestApplication;
@@ -413,6 +414,34 @@ describe('SettlementController (e2e)', () => {
         .get('/settlement/group/{groupId}')
         .withPathParams('groupId', groupId)
         .withBearerToken(login3Response.access_token)
+        .expectStatus(200)
+        .expectJsonLength(0);
+    });
+
+    it('should return empty array for soft-deleted group', async () => {
+      // Create a settlement first
+      await spec()
+        .post('/settlement')
+        .withBearerToken(user1.accessToken)
+        .withJson({
+          groupId,
+          fromMemberId: user1MemberId,
+          toMemberId: user2MemberId,
+          centAmount: 5000,
+        });
+
+      // Soft-delete the group directly via Prisma
+      const prisma = app.get(PrismaService);
+      await prisma.group.update({
+        where: { id: groupId },
+        data: { deletedAt: new Date() },
+      });
+
+      // User trying to view settlements for soft-deleted group
+      await spec()
+        .get('/settlement/group/{groupId}')
+        .withPathParams('groupId', groupId)
+        .withBearerToken(user1.accessToken)
         .expectStatus(200)
         .expectJsonLength(0);
     });

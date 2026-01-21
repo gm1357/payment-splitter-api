@@ -267,6 +267,7 @@ describe('SettlementService', () => {
         where: {
           groupId,
           group: {
+            deletedAt: null,
             members: {
               some: {
                 userId,
