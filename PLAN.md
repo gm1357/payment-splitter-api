@@ -43,13 +43,16 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| View each member's net balance | ❌ Missing | No endpoint exists |
-| Positive balance = owed to member | ❌ Missing | |
-| Negative balance = member owes | ❌ Missing | |
+| View each member's net balance | ✅ Completed | `GET /balance/group/:groupId` |
+| Positive balance = owed to member | ✅ Completed | |
+| Negative balance = member owes | ✅ Completed | |
+| Suggest optimal settlements | ✅ Completed | `GET /balance/group/:groupId/suggest` |
 
-### Implementation needed:
-- `GET /group/:id/balances` endpoint
-- Calculate: (sum of expenses paid) - (sum of splits owed) + (settlements received) - (settlements paid)
+### Implementation details:
+- `GET /balance/group/:groupId` - Returns balances for all members
+- `GET /balance/group/:groupId/suggest` - Returns minimal settlement suggestions
+- Formula: netBalance = (totalPaid + settlementsPaid) - (totalOwed + settlementsReceived)
+- Validates: group exists, requester is member
 
 ---
 
@@ -59,7 +62,7 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 |---------|--------|-------|
 | Record settlements between members | ✅ Completed | `POST /settlement` |
 | List settlements for a group | ✅ Completed | `GET /settlement/group/:groupId` |
-| Update balances after settlement | ❌ Missing | Depends on balance calculation |
+| Update balances after settlement | ✅ Completed | Settlements factored into balance calculation |
 
 ### Implementation details:
 - `POST /settlement` - Creates a settlement with `groupId`, `fromMemberId`, `toMemberId`, `centAmount`, optional `notes`
@@ -106,8 +109,8 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 |----------|----------|
 | Group Management | ✅ 100% Complete |
 | Add Expenses | ⏳ 85% (missing partial split) |
-| View Balances | ❌ 0% |
-| Settle Debts | ⏳ 66% (missing balance update) |
+| View Balances | ✅ 100% Complete |
+| Settle Debts | ✅ 100% Complete |
 | File Upload | ❌ 0% |
 | Email Notification | ❌ 0% |
 
@@ -116,9 +119,8 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 ## Suggested Implementation Order
 
 1. **Partial Split** - Small addition to existing expense logic
-2. **View Balances** - Depends on expenses and settlements being complete (both now exist)
-3. **Email Notification** - Can be added as event listeners
-4. **File Upload** - Most complex, requires AWS integration
+2. **Email Notification** - Can be added as event listeners
+3. **File Upload** - Most complex, requires AWS integration
 
 ---
 
@@ -128,8 +130,8 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 - **Authentication**: JWT + Passport (implemented, though not required by assignment)
 - **Validation**: class-validator with global ValidationPipe ✅
 - **Testing:**
-  - Unit tests: Co-located with source (`src/**/*.spec.ts`), Jest with mocked dependencies (43 tests)
-  - Integration tests: `test/integration/*.e2e-spec.ts`, uses pactum for HTTP assertions (57 tests)
+  - Unit tests: Co-located with source (`src/**/*.spec.ts`), Jest with mocked dependencies (58 tests)
+  - Integration tests: `test/integration/*.e2e-spec.ts`, uses pactum for HTTP assertions
   - Test utilities: `createTestApp()`, `resetDatabase()`, `spec()` in `test-utils.ts`
 - **CI/CD:**
   - GitHub Actions workflows in `.github/workflows/`
