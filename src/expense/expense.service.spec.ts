@@ -189,6 +189,209 @@ describe('ExpenseService', () => {
         new BadRequestException('Payer is not a valid member of this group'),
       );
     });
+
+    describe('partial splits', () => {
+      const members = [
+        { id: 'member-1', joinedAt: new Date('2024-01-01') },
+        { id: 'member-2', joinedAt: new Date('2024-01-02') },
+        { id: 'member-3', joinedAt: new Date('2024-01-03') },
+      ];
+
+      beforeEach(() => {
+        mockPrismaService.group.findUnique.mockResolvedValue({ id: groupId });
+        mockPrismaService.groupMember.findFirst.mockResolvedValue({
+          id: 'member-1',
+        });
+        mockPrismaService.groupMember.findMany.mockResolvedValue(members);
+        mockPrismaService.expense.create.mockResolvedValue({});
+      });
+
+      it('should create partial split with subset of members', async () => {
+        await service.create(
+          {
+            ...createExpenseDto,
+            centAmount: 3000,
+            includedMemberIds: ['member-1', 'member-3'],
+          },
+          userId,
+        );
+
+        expect(mockPrismaService.expense.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            data: expect.objectContaining({
+              splitType: 'PARTIAL',
+              splits: {
+                create: [
+                  { groupMemberId: 'member-1', centAmount: 1500 },
+                  { groupMemberId: 'member-3', centAmount: 1500 },
+                ],
+              },
+            }),
+          }),
+        );
+      });
+
+      it('should set EQUAL_ALL when all members explicitly included', async () => {
+        await service.create(
+          {
+            ...createExpenseDto,
+            includedMemberIds: ['member-1', 'member-2', 'member-3'],
+          },
+          userId,
+        );
+
+        expect(mockPrismaService.expense.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            data: expect.objectContaining({
+              splitType: 'EQUAL_ALL',
+            }),
+          }),
+        );
+      });
+
+      it('should distribute remainder by joinedAt order in partial splits', async () => {
+        // 10001 / 2 = 5000 with remainder 1
+        // member-1 joined first, so gets the extra cent
+        await service.create(
+          {
+            ...createExpenseDto,
+            centAmount: 10001,
+            includedMemberIds: ['member-1', 'member-3'],
+          },
+          userId,
+        );
+
+        expect(mockPrismaService.expense.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            data: expect.objectContaining({
+              splits: {
+                create: [
+                  { groupMemberId: 'member-1', centAmount: 5001 },
+                  { groupMemberId: 'member-3', centAmount: 5000 },
+                ],
+              },
+            }),
+          }),
+        );
+      });
+
+      it('should throw BadRequestException for invalid member ID', async () => {
+        await expect(
+          service.create(
+            {
+              ...createExpenseDto,
+              includedMemberIds: ['member-1', 'invalid-member'],
+            },
+            userId,
+          ),
+        ).rejects.toThrow(
+          new BadRequestException('Invalid member IDs: invalid-member'),
+        );
+      });
+
+      it('should deduplicate member IDs', async () => {
+        await service.create(
+          {
+            ...createExpenseDto,
+            centAmount: 3000,
+            includedMemberIds: ['member-1', 'member-1', 'member-2'],
+          },
+          userId,
+        );
+
+        expect(mockPrismaService.expense.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            data: expect.objectContaining({
+              splits: {
+                create: [
+                  { groupMemberId: 'member-1', centAmount: 1500 },
+                  { groupMemberId: 'member-2', centAmount: 1500 },
+                ],
+              },
+            }),
+          }),
+        );
+      });
+
+      it('should default to EQUAL_ALL when includedMemberIds is undefined', async () => {
+        await service.create(createExpenseDto, userId);
+
+        expect(mockPrismaService.expense.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            data: expect.objectContaining({
+              splitType: 'EQUAL_ALL',
+              splits: {
+                create: [
+                  { groupMemberId: 'member-1', centAmount: 3334 },
+                  { groupMemberId: 'member-2', centAmount: 3333 },
+                  { groupMemberId: 'member-3', centAmount: 3333 },
+                ],
+              },
+            }),
+          }),
+        );
+      });
+
+      it('should default to EQUAL_ALL when includedMemberIds is empty array', async () => {
+        await service.create(
+          { ...createExpenseDto, includedMemberIds: [] },
+          userId,
+        );
+
+        expect(mockPrismaService.expense.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            data: expect.objectContaining({
+              splitType: 'EQUAL_ALL',
+              splits: {
+                create: [
+                  { groupMemberId: 'member-1', centAmount: 3334 },
+                  { groupMemberId: 'member-2', centAmount: 3333 },
+                  { groupMemberId: 'member-3', centAmount: 3333 },
+                ],
+              },
+            }),
+          }),
+        );
+      });
+
+      it('should allow payer not in split', async () => {
+        mockPrismaService.groupMember.findFirst
+          .mockResolvedValueOnce({ id: 'member-1' }) // creator membership
+          .mockResolvedValueOnce({ id: 'member-3' }); // payer membership
+
+        await service.create(
+          {
+            ...createExpenseDto,
+            centAmount: 2000,
+            paidByMemberId: 'member-3',
+            includedMemberIds: ['member-1', 'member-2'],
+          },
+          userId,
+        );
+
+        expect(mockPrismaService.expense.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            data: expect.objectContaining({
+              paidBy: 'member-3',
+              splitType: 'PARTIAL',
+              splits: {
+                create: [
+                  { groupMemberId: 'member-1', centAmount: 1000 },
+                  { groupMemberId: 'member-2', centAmount: 1000 },
+                ],
+              },
+            }),
+          }),
+        );
+      });
+    });
   });
 
   describe('listByGroup', () => {

@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -24,4 +25,9 @@ export class CreateExpenseDto {
   @IsOptional()
   @IsUUID()
   paidByMemberId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  includedMemberIds?: string[];
 }

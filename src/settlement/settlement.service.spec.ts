@@ -160,7 +160,9 @@ describe('SettlementService', () => {
         .mockResolvedValueOnce(null); // fromMember doesn't exist
 
       await expect(service.create(createSettlementDto, userId)).rejects.toThrow(
-        new BadRequestException('fromMemberId is not a valid member of this group'),
+        new BadRequestException(
+          'fromMemberId is not a valid member of this group',
+        ),
       );
     });
 
@@ -172,7 +174,9 @@ describe('SettlementService', () => {
         .mockResolvedValueOnce(null); // toMember doesn't exist
 
       await expect(service.create(createSettlementDto, userId)).rejects.toThrow(
-        new BadRequestException('toMemberId is not a valid member of this group'),
+        new BadRequestException(
+          'toMemberId is not a valid member of this group',
+        ),
       );
     });
 
