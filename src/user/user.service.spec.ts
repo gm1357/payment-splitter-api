@@ -48,10 +48,7 @@ describe('UserService', () => {
       });
 
       await expect(service.create(createUserDto)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.create(createUserDto)).rejects.toThrow(
-        'invalid email',
+        new BadRequestException('invalid email'),
       );
     });
 
@@ -107,10 +104,7 @@ describe('UserService', () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
 
       await expect(service.findOne('non-existent')).rejects.toThrow(
-        NotFoundException,
-      );
-      await expect(service.findOne('non-existent')).rejects.toThrow(
-        'User not found',
+        new NotFoundException('User not found'),
       );
     });
   });

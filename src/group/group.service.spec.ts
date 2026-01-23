@@ -70,10 +70,7 @@ describe('GroupService', () => {
       mockPrismaService.group.findUnique.mockResolvedValue(null);
 
       await expect(service.joinGroup(groupId, userId)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.joinGroup(groupId, userId)).rejects.toThrow(
-        'Group does not exits',
+        new BadRequestException('Group does not exits'),
       );
     });
 
@@ -85,10 +82,7 @@ describe('GroupService', () => {
       });
 
       await expect(service.joinGroup(groupId, userId)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.joinGroup(groupId, userId)).rejects.toThrow(
-        'You are already member of this group',
+        new BadRequestException('You are already member of this group'),
       );
     });
 
@@ -117,10 +111,7 @@ describe('GroupService', () => {
       mockPrismaService.group.findUnique.mockResolvedValue(null);
 
       await expect(service.leaveGroup(groupId, userId)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.leaveGroup(groupId, userId)).rejects.toThrow(
-        'Group does not exits',
+        new BadRequestException('Group does not exits'),
       );
     });
 
