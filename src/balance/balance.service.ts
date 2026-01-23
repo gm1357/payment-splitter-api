@@ -96,37 +96,16 @@ export class BalanceService {
         .reduce((sum, s) => sum + s.centAmount, 0);
 
       /**
-       * Net Balance Calculation Explained:
+       * Net Balance = (totalPaid + settlementsPaid) - (totalOwed + settlementsReceived)
        *
-       * Formula: netBalance = (totalPaid + settlementsPaid) - (totalOwed + settlementsReceived)
+       * settlementsPaid is ADDED to totalPaid because paying settlements increases
+       * your total contribution to the group.
        *
-       * Understanding the components:
-       * - totalPaid: Amount this member paid for group expenses
-       * - totalOwed: This member's share of all group expenses
-       * - settlementsPaid: Money this member has already paid to settle debts
-       * - settlementsReceived: Money this member has received from others
+       * settlementsReceived is ADDED to totalOwed (counter-intuitive) because receiving
+       * payments compensates what you're owed, reducing your outstanding balance.
+       * Example: Paid $100, owed $60 (net +$40). Receive $20 settlement: (100)-(60+20)=+$20 ✓
        *
-       * Why settlementsPaid is ADDED to totalPaid:
-       * - When you pay a settlement, you're paying MORE than your original expense share
-       * - This increases your total contribution to the group
-       * - Example: If you paid $100 in expenses and later paid a $20 settlement,
-       *   your total contribution is $120
-       *
-       * Why settlementsReceived is ADDED to totalOwed (counter-intuitive but correct):
-       * - When you receive a settlement, you're being COMPENSATED for what you were owed
-       * - This reduces how much you're currently owed (your outstanding balance decreases)
-       * - Adding it to totalOwed mathematically reduces the final netBalance
-       * - Example: You paid $100 but only owed $60 (you're owed $40 back).
-       *   If someone pays you $20, you're now only owed $20, not $40.
-       *   Formula: (100 + 0) - (60 + 20) = 20 ✓
-       *
-       * Interpretation:
-       * - Positive netBalance: Member is OWED money (they've paid more than their share)
-       * - Negative netBalance: Member OWES money (they haven't paid their full share)
-       * - Zero netBalance: Member is even (paid exactly their share)
-       *
-       * This formula ensures that settlement suggestions correctly identify who owes
-       * whom, accounting for both original expenses and any settlements already made.
+       * Result: Positive = owed money, Negative = owes money, Zero = even
        */
       const netBalance =
         totalPaid + settlementsPaid - (totalOwed + settlementsReceived);
