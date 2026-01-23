@@ -140,10 +140,7 @@ describe('SettlementService', () => {
       mockPrismaService.group.findUnique.mockResolvedValue(null);
 
       await expect(service.create(createSettlementDto, userId)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.create(createSettlementDto, userId)).rejects.toThrow(
-        'Group does not exist',
+        new BadRequestException('Group does not exist'),
       );
     });
 
@@ -152,10 +149,7 @@ describe('SettlementService', () => {
       mockPrismaService.groupMember.findFirst.mockResolvedValue(null);
 
       await expect(service.create(createSettlementDto, userId)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.create(createSettlementDto, userId)).rejects.toThrow(
-        'You are not a member of this group',
+        new BadRequestException('You are not a member of this group'),
       );
     });
 
@@ -166,15 +160,7 @@ describe('SettlementService', () => {
         .mockResolvedValueOnce(null); // fromMember doesn't exist
 
       await expect(service.create(createSettlementDto, userId)).rejects.toThrow(
-        BadRequestException,
-      );
-
-      mockPrismaService.groupMember.findFirst
-        .mockResolvedValueOnce({ id: 'requester-member' })
-        .mockResolvedValueOnce(null);
-
-      await expect(service.create(createSettlementDto, userId)).rejects.toThrow(
-        'fromMemberId is not a valid member of this group',
+        new BadRequestException('fromMemberId is not a valid member of this group'),
       );
     });
 
@@ -186,16 +172,7 @@ describe('SettlementService', () => {
         .mockResolvedValueOnce(null); // toMember doesn't exist
 
       await expect(service.create(createSettlementDto, userId)).rejects.toThrow(
-        BadRequestException,
-      );
-
-      mockPrismaService.groupMember.findFirst
-        .mockResolvedValueOnce({ id: 'requester-member' })
-        .mockResolvedValueOnce({ id: fromMemberId })
-        .mockResolvedValueOnce(null);
-
-      await expect(service.create(createSettlementDto, userId)).rejects.toThrow(
-        'toMemberId is not a valid member of this group',
+        new BadRequestException('toMemberId is not a valid member of this group'),
       );
     });
 
@@ -214,16 +191,7 @@ describe('SettlementService', () => {
         .mockResolvedValueOnce({ id: 'member-1' });
 
       await expect(service.create(selfSettlementDto, userId)).rejects.toThrow(
-        BadRequestException,
-      );
-
-      mockPrismaService.groupMember.findFirst
-        .mockResolvedValueOnce({ id: 'requester-member' })
-        .mockResolvedValueOnce({ id: 'member-1' })
-        .mockResolvedValueOnce({ id: 'member-1' });
-
-      await expect(service.create(selfSettlementDto, userId)).rejects.toThrow(
-        'Cannot settle with yourself',
+        new BadRequestException('Cannot settle with yourself'),
       );
     });
   });

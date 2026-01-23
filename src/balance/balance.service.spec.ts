@@ -49,10 +49,7 @@ describe('BalanceService', () => {
       mockPrismaService.group.findUnique.mockResolvedValue(null);
 
       await expect(service.getGroupBalances(groupId, userId)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.getGroupBalances(groupId, userId)).rejects.toThrow(
-        'Group does not exist',
+        new BadRequestException('Group does not exist'),
       );
     });
 
@@ -64,10 +61,7 @@ describe('BalanceService', () => {
       mockPrismaService.groupMember.findFirst.mockResolvedValue(null);
 
       await expect(service.getGroupBalances(groupId, userId)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.getGroupBalances(groupId, userId)).rejects.toThrow(
-        'You are not a member of this group',
+        new BadRequestException('You are not a member of this group'),
       );
     });
 
@@ -348,10 +342,7 @@ describe('BalanceService', () => {
       mockPrismaService.group.findUnique.mockResolvedValue(null);
 
       await expect(service.suggestSettlements(groupId, userId)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.suggestSettlements(groupId, userId)).rejects.toThrow(
-        'Group does not exist',
+        new BadRequestException('Group does not exist'),
       );
     });
 
@@ -363,10 +354,7 @@ describe('BalanceService', () => {
       mockPrismaService.groupMember.findFirst.mockResolvedValue(null);
 
       await expect(service.suggestSettlements(groupId, userId)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.suggestSettlements(groupId, userId)).rejects.toThrow(
-        'You are not a member of this group',
+        new BadRequestException('You are not a member of this group'),
       );
     });
 

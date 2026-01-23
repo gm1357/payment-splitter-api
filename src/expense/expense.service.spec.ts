@@ -161,10 +161,7 @@ describe('ExpenseService', () => {
       mockPrismaService.group.findUnique.mockResolvedValue(null);
 
       await expect(service.create(createExpenseDto, userId)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.create(createExpenseDto, userId)).rejects.toThrow(
-        'Group does not exist',
+        new BadRequestException('Group does not exist'),
       );
     });
 
@@ -173,10 +170,7 @@ describe('ExpenseService', () => {
       mockPrismaService.groupMember.findFirst.mockResolvedValue(null);
 
       await expect(service.create(createExpenseDto, userId)).rejects.toThrow(
-        BadRequestException,
-      );
-      await expect(service.create(createExpenseDto, userId)).rejects.toThrow(
-        'You are not a member of this group',
+        new BadRequestException('You are not a member of this group'),
       );
     });
 
@@ -191,18 +185,9 @@ describe('ExpenseService', () => {
           { ...createExpenseDto, paidByMemberId: 'invalid-member' },
           userId,
         ),
-      ).rejects.toThrow(BadRequestException);
-
-      mockPrismaService.groupMember.findFirst
-        .mockResolvedValueOnce({ id: 'member-1' })
-        .mockResolvedValueOnce(null);
-
-      await expect(
-        service.create(
-          { ...createExpenseDto, paidByMemberId: 'invalid-member' },
-          userId,
-        ),
-      ).rejects.toThrow('Payer is not a valid member of this group');
+      ).rejects.toThrow(
+        new BadRequestException('Payer is not a valid member of this group'),
+      );
     });
   });
 
