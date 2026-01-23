@@ -10,15 +10,15 @@ import {
 
 export class CreateSettlementDto {
   @IsNotEmpty()
-  @IsUUID()
+  @IsUUID('4')
   groupId: string;
 
   @IsNotEmpty()
-  @IsUUID()
+  @IsUUID('4')
   fromMemberId: string;
 
   @IsNotEmpty()
-  @IsUUID()
+  @IsUUID('4')
   toMemberId: string;
 
   @IsNotEmpty()
