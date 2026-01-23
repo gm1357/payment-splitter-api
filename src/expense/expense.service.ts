@@ -47,13 +47,54 @@ export class ExpenseService {
     }
 
     // Get all group members ordered by joinedAt for equal splitting
-    const members = await this.prisma.groupMember.findMany({
+    const allMembers = await this.prisma.groupMember.findMany({
       where: { groupId: createExpenseDto.groupId },
       orderBy: { joinedAt: 'asc' },
     });
 
+    // Determine which members to include in the split
+    let membersToSplit = allMembers;
+    let splitType: 'EQUAL_ALL' | 'PARTIAL' = 'EQUAL_ALL';
+
+    if (
+      createExpenseDto.includedMemberIds &&
+      createExpenseDto.includedMemberIds.length > 0
+    ) {
+      // Deduplicate the included member IDs
+      const uniqueIncludedIds = [
+        ...new Set(createExpenseDto.includedMemberIds),
+      ];
+
+      // Validate all included member IDs are valid group members
+      const allMemberIds = new Set(allMembers.map((m) => m.id));
+      const invalidIds = uniqueIncludedIds.filter(
+        (id) => !allMemberIds.has(id),
+      );
+
+      if (invalidIds.length > 0) {
+        throw new BadRequestException(
+          `Invalid member IDs: ${invalidIds.join(', ')}`,
+        );
+      }
+
+      // Filter to only included members, preserving joinedAt order
+      const includedSet = new Set(uniqueIncludedIds);
+      membersToSplit = allMembers.filter((m) => includedSet.has(m.id));
+
+      // Set split type based on whether it's a subset
+      splitType =
+        membersToSplit.length < allMembers.length ? 'PARTIAL' : 'EQUAL_ALL';
+    }
+
+    // Validate at least 1 member in the split
+    if (membersToSplit.length === 0) {
+      throw new BadRequestException(
+        'At least one member must be included in the split',
+      );
+    }
+
     // Calculate equal split
-    const memberCount = members.length;
+    const memberCount = membersToSplit.length;
     const baseAmount = Math.floor(createExpenseDto.centAmount / memberCount);
     const remainder = createExpenseDto.centAmount % memberCount;
 
@@ -65,9 +106,9 @@ export class ExpenseService {
         paidBy: payerMemberId,
         description: createExpenseDto.description,
         centAmount: createExpenseDto.centAmount,
-        splitType: 'EQUAL_ALL',
+        splitType,
         splits: {
-          create: members.map((member, index) => ({
+          create: membersToSplit.map((member, index) => ({
             groupMemberId: member.id,
             centAmount: index < remainder ? baseAmount + 1 : baseAmount,
           })),

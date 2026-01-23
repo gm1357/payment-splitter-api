@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -9,7 +10,7 @@ import {
 
 export class CreateExpenseDto {
   @IsNotEmpty()
-  @IsUUID()
+  @IsUUID('4')
   groupId: string;
 
   @IsNotEmpty()
@@ -22,6 +23,11 @@ export class CreateExpenseDto {
   centAmount: number;
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('4')
   paidByMemberId?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  includedMemberIds?: string[];
 }
