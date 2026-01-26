@@ -4,6 +4,8 @@ import { AppModule } from 'src/app.module';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { request, spec } from 'pactum';
 
+const EMAIL_HTTP_URL = `http://${process.env.EMAIL_HTTP_HOST}:${process.env.EMAIL_HTTP_PORT}`;
+
 export async function createTestApp(): Promise<INestApplication> {
   const moduleFixture: TestingModule = await Test.createTestingModule({
     imports: [AppModule],
@@ -31,6 +33,45 @@ export async function resetDatabase(app: INestApplication): Promise<void> {
     prisma.group.deleteMany(),
     prisma.user.deleteMany(),
   ]);
+}
+
+export async function deleteAllEmails() {
+  await fetch(`${EMAIL_HTTP_URL}/messages`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getEmails() {
+  const emailListRes = await fetch(`${EMAIL_HTTP_URL}/messages`);
+  const emailList: {
+    id: number;
+    sender: string;
+    recipients: string[];
+    subject: string;
+    size: string;
+    created_at: string;
+  }[] = await emailListRes.json();
+
+  return emailList;
+}
+
+export async function getLastEmail() {
+  const emailList = await getEmails();
+  const lastEmailItem = emailList.pop();
+
+  if (!lastEmailItem) {
+    return null;
+  }
+
+  const lastEmailTextRes = await fetch(
+    `${EMAIL_HTTP_URL}/messages/${lastEmailItem.id}.plain`,
+  );
+  const emailTextBody = await lastEmailTextRes.text();
+
+  return {
+    ...lastEmailItem,
+    text: emailTextBody,
+  };
 }
 
 export interface TestUser {
