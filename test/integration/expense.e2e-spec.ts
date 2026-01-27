@@ -3,6 +3,7 @@ import {
   createTestApp,
   deleteAllEmails,
   getEmails,
+  getEmailTextById,
   resetDatabase,
   spec,
   TestUser,
@@ -200,9 +201,7 @@ describe('ExpenseController (e2e)', () => {
       const payerEmail = emailsSent.find((e) =>
         e.subject.includes('Expense added'),
       );
-      const payerEmailText = await fetch(
-        `http://${process.env.EMAIL_HTTP_HOST}:${process.env.EMAIL_HTTP_PORT}/messages/${payerEmail!.id}.plain`,
-      ).then((res) => res.text());
+      const payerEmailText = await getEmailTextById(payerEmail!.id);
 
       expect(payerEmailText).toContain('Hi User One');
       expect(payerEmailText).toContain('Description: Team Lunch');
@@ -214,9 +213,7 @@ describe('ExpenseController (e2e)', () => {
           e.subject.includes('New expense') &&
           e.recipients.includes(`<${user2.email}>`),
       );
-      const memberEmailText = await fetch(
-        `http://${process.env.EMAIL_HTTP_HOST}:${process.env.EMAIL_HTTP_PORT}/messages/${memberEmail!.id}.plain`,
-      ).then((res) => res.text());
+      const memberEmailText = await getEmailTextById(memberEmail!.id);
 
       expect(memberEmailText).toContain('Hi User Two');
       expect(memberEmailText).toContain('User One added an expense');

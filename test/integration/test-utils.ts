@@ -36,23 +36,70 @@ export async function resetDatabase(app: INestApplication): Promise<void> {
 }
 
 export async function deleteAllEmails() {
-  await fetch(`${EMAIL_HTTP_URL}/messages`, {
-    method: 'DELETE',
-  });
+  try {
+    const res = await fetch(`${EMAIL_HTTP_URL}/messages`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      throw new Error(
+        `Failed to delete emails: ${res.status} ${res.statusText}`,
+      );
+    }
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(
+        `Could not connect to email service at ${EMAIL_HTTP_URL}. Ensure MailCatcher is running.`,
+      );
+    }
+    throw error;
+  }
 }
 
 export async function getEmails() {
-  const emailListRes = await fetch(`${EMAIL_HTTP_URL}/messages`);
-  const emailList: {
-    id: number;
-    sender: string;
-    recipients: string[];
-    subject: string;
-    size: string;
-    created_at: string;
-  }[] = await emailListRes.json();
+  try {
+    const emailListRes = await fetch(`${EMAIL_HTTP_URL}/messages`);
+    if (!emailListRes.ok) {
+      throw new Error(
+        `Failed to fetch emails: ${emailListRes.status} ${emailListRes.statusText}`,
+      );
+    }
+    const emailList: {
+      id: number;
+      sender: string;
+      recipients: string[];
+      subject: string;
+      size: string;
+      created_at: string;
+    }[] = await emailListRes.json();
 
-  return emailList;
+    return emailList;
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(
+        `Could not connect to email service at ${EMAIL_HTTP_URL}. Ensure MailCatcher is running.`,
+      );
+    }
+    throw error;
+  }
+}
+
+export async function getEmailTextById(id: number): Promise<string> {
+  try {
+    const res = await fetch(`${EMAIL_HTTP_URL}/messages/${id}.plain`);
+    if (!res.ok) {
+      throw new Error(
+        `Failed to fetch email text: ${res.status} ${res.statusText}`,
+      );
+    }
+    return res.text();
+  } catch (error) {
+    if (error instanceof TypeError) {
+      throw new Error(
+        `Could not connect to email service at ${EMAIL_HTTP_URL}. Ensure MailCatcher is running.`,
+      );
+    }
+    throw error;
+  }
 }
 
 export async function getLastEmail() {
@@ -63,10 +110,7 @@ export async function getLastEmail() {
     return null;
   }
 
-  const lastEmailTextRes = await fetch(
-    `${EMAIL_HTTP_URL}/messages/${lastEmailItem.id}.plain`,
-  );
-  const emailTextBody = await lastEmailTextRes.text();
+  const emailTextBody = await getEmailTextById(lastEmailItem.id);
 
   return {
     ...lastEmailItem,

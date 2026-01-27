@@ -161,12 +161,15 @@ export class ExpenseService {
     const payerEmail = expense.payer.user.email;
     const description = expense.description;
 
+    const emailPromises: Promise<void>[] = [];
+
     // Email to Payer
-    await email.send({
-      from: 'Payment Splitter <noreply@paymentsplitter.com>',
-      to: payerEmail,
-      subject: `Expense added - ${groupName}`,
-      text: `Hi ${payerName},
+    emailPromises.push(
+      email.send({
+        from: 'Payment Splitter <noreply@paymentsplitter.com>',
+        to: payerEmail,
+        subject: `Expense added - ${groupName}`,
+        text: `Hi ${payerName},
 
 You added an expense in ${groupName}.
 
@@ -175,7 +178,8 @@ Amount: $${amount}
 
 Thanks for using Payment Splitter!
 `,
-    });
+      }),
+    );
 
     // Email to each member in the split (excluding payer if they are in the split)
     for (const split of expense.splits) {
@@ -187,11 +191,12 @@ Thanks for using Payment Splitter!
       const memberEmail = split.groupMember.user.email;
       const splitAmount = (split.centAmount / 100).toFixed(2);
 
-      await email.send({
-        from: 'Payment Splitter <noreply@paymentsplitter.com>',
-        to: memberEmail,
-        subject: `New expense - ${groupName}`,
-        text: `Hi ${memberName},
+      emailPromises.push(
+        email.send({
+          from: 'Payment Splitter <noreply@paymentsplitter.com>',
+          to: memberEmail,
+          subject: `New expense - ${groupName}`,
+          text: `Hi ${memberName},
 
 ${payerName} added an expense in ${groupName}.
 
@@ -201,8 +206,11 @@ Your Share: $${splitAmount}
 
 Thanks for using Payment Splitter!
 `,
-      });
+        }),
+      );
     }
+
+    await Promise.all(emailPromises);
   }
 
   async listByGroup(groupId: string, userId: string) {

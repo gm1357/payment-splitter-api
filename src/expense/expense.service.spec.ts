@@ -5,7 +5,10 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import email from 'src/infra/email';
 
 jest.mock('src/infra/email', () => ({
-  send: jest.fn(),
+  __esModule: true,
+  default: {
+    send: jest.fn().mockResolvedValue(undefined),
+  },
 }));
 
 describe('ExpenseService', () => {
