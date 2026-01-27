@@ -2,6 +2,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { SettlementService } from './settlement.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import email from 'src/infra/email';
+
+jest.mock('src/infra/email', () => ({
+  __esModule: true,
+  default: {
+    send: jest.fn().mockResolvedValue(undefined),
+  },
+}));
 
 describe('SettlementService', () => {
   let service: SettlementService;
@@ -55,8 +63,15 @@ describe('SettlementService', () => {
         notes: null,
         settledAt: new Date(),
         createdAt: new Date(),
-        fromMember: { id: fromMemberId },
-        toMember: { id: toMemberId },
+        group: { name: 'Test Group' },
+        fromMember: {
+          id: fromMemberId,
+          user: { name: 'Payer Name', email: 'payer@test.com' },
+        },
+        toMember: {
+          id: toMemberId,
+          user: { name: 'Receiver Name', email: 'receiver@test.com' },
+        },
       };
 
       mockPrismaService.group.findUnique.mockResolvedValue({ id: groupId });
@@ -78,10 +93,16 @@ describe('SettlementService', () => {
           notes: undefined,
         },
         include: {
-          fromMember: true,
-          toMember: true,
+          group: true,
+          fromMember: {
+            include: { user: true },
+          },
+          toMember: {
+            include: { user: true },
+          },
         },
       });
+      expect(email.send).toHaveBeenCalledTimes(2);
     });
 
     it('should create a settlement without notes', async () => {
@@ -92,12 +113,20 @@ describe('SettlementService', () => {
         centAmount: 5000,
       };
 
+      const mockSettlement = {
+        centAmount: 5000,
+        notes: null,
+        group: { name: 'Test Group' },
+        fromMember: { user: { name: 'Payer', email: 'payer@test.com' } },
+        toMember: { user: { name: 'Receiver', email: 'receiver@test.com' } },
+      };
+
       mockPrismaService.group.findUnique.mockResolvedValue({ id: groupId });
       mockPrismaService.groupMember.findFirst
         .mockResolvedValueOnce({ id: 'requester-member' })
         .mockResolvedValueOnce({ id: fromMemberId })
         .mockResolvedValueOnce({ id: toMemberId });
-      mockPrismaService.settlement.create.mockResolvedValue({});
+      mockPrismaService.settlement.create.mockResolvedValue(mockSettlement);
 
       await service.create(dtoWithoutNotes, userId);
 
@@ -117,12 +146,20 @@ describe('SettlementService', () => {
         notes: 'Payment for dinner',
       };
 
+      const mockSettlement = {
+        centAmount: 5000,
+        notes: 'Payment for dinner',
+        group: { name: 'Test Group' },
+        fromMember: { user: { name: 'Payer', email: 'payer@test.com' } },
+        toMember: { user: { name: 'Receiver', email: 'receiver@test.com' } },
+      };
+
       mockPrismaService.group.findUnique.mockResolvedValue({ id: groupId });
       mockPrismaService.groupMember.findFirst
         .mockResolvedValueOnce({ id: 'requester-member' })
         .mockResolvedValueOnce({ id: fromMemberId })
         .mockResolvedValueOnce({ id: toMemberId });
-      mockPrismaService.settlement.create.mockResolvedValue({});
+      mockPrismaService.settlement.create.mockResolvedValue(mockSettlement);
 
       await service.create(dtoWithNotes, userId);
 

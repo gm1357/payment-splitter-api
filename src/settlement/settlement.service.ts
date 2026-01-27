@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateSettlementDto } from './dto/create-settlement.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import email from 'src/infra/email';
 
 @Injectable()
 export class SettlementService {
@@ -71,12 +72,67 @@ export class SettlementService {
         notes: createSettlementDto.notes,
       },
       include: {
-        fromMember: true,
-        toMember: true,
+        group: true,
+        fromMember: {
+          include: { user: true },
+        },
+        toMember: {
+          include: { user: true },
+        },
       },
     });
 
+    await this.sendSettlementNotifications(settlement);
+
     return settlement;
+  }
+
+  private async sendSettlementNotifications(settlement: {
+    centAmount: number;
+    notes: string | null;
+    group: { name: string };
+    fromMember: { user: { name: string; email: string } };
+    toMember: { user: { name: string; email: string } };
+  }) {
+    const amount = (settlement.centAmount / 100).toFixed(2);
+    const groupName = settlement.group.name;
+    const payerName = settlement.fromMember.user.name;
+    const payerEmail = settlement.fromMember.user.email;
+    const receiverName = settlement.toMember.user.name;
+    const receiverEmail = settlement.toMember.user.email;
+    const notes = settlement.notes || 'None';
+
+    await email.send({
+      from: 'Payment Splitter <noreply@paymentsplitter.com>',
+      to: payerEmail,
+      subject: `Payment recorded - ${groupName}`,
+      text: `Hi ${payerName},
+
+Your payment has been recorded in ${groupName}.
+
+Amount: $${amount}
+Paid to: ${receiverName}
+Notes: ${notes}
+
+Thanks for using Payment Splitter!
+`,
+    });
+
+    await email.send({
+      from: 'Payment Splitter <noreply@paymentsplitter.com>',
+      to: receiverEmail,
+      subject: `You received a payment - ${groupName}`,
+      text: `Hi ${receiverName},
+
+You received a payment in ${groupName}.
+
+Amount: $${amount}
+From: ${payerName}
+Notes: ${notes}
+
+Thanks for using Payment Splitter!
+`,
+    });
   }
 
   async listByGroup(groupId: string, userId: string) {

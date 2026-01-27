@@ -1,5 +1,13 @@
 import { INestApplication } from '@nestjs/common';
-import { createTestApp, resetDatabase, spec, TestUser } from './test-utils';
+import {
+  createTestApp,
+  deleteAllEmails,
+  getEmails,
+  getLastEmail,
+  resetDatabase,
+  spec,
+  TestUser,
+} from './test-utils';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 describe('SettlementController (e2e)', () => {
@@ -16,6 +24,7 @@ describe('SettlementController (e2e)', () => {
 
   beforeEach(async () => {
     await resetDatabase(app);
+    await deleteAllEmails();
 
     // Create user 1
     const user1Response = await spec()
@@ -124,6 +133,100 @@ describe('SettlementController (e2e)', () => {
           expect(ctx.res.body.fromMember).toBeDefined();
           expect(ctx.res.body.toMember).toBeDefined();
         });
+
+      const emailsSent = await getEmails();
+      expect(emailsSent.length).toBe(2);
+
+      // Verify email recipients
+      const recipients = emailsSent.flatMap((e) => e.recipients);
+      expect(recipients).toContain(`<${user1.email}>`);
+      expect(recipients).toContain(`<${user2.email}>`);
+
+      // Verify email subjects
+      const subjects = emailsSent.map((e) => e.subject);
+      expect(subjects).toContain('Payment recorded - Trip Expenses');
+      expect(subjects).toContain('You received a payment - Trip Expenses');
+    });
+
+    it('should send email to payer with correct content', async () => {
+      await spec()
+        .post('/settlement')
+        .withBearerToken(user1.accessToken)
+        .withJson({
+          groupId,
+          fromMemberId: user1MemberId,
+          toMemberId: user2MemberId,
+          centAmount: 5000,
+          notes: 'Payment for dinner',
+        })
+        .expectStatus(201);
+
+      const emails = await getEmails();
+      const payerEmail = emails.find((e) =>
+        e.subject.includes('Payment recorded'),
+      );
+
+      expect(payerEmail).toBeDefined();
+      expect(payerEmail!.recipients).toContain(`<${user1.email}>`);
+
+      const payerEmailText = await fetch(
+        `http://${process.env.EMAIL_HTTP_HOST}:${process.env.EMAIL_HTTP_PORT}/messages/${payerEmail!.id}.plain`,
+      ).then((res) => res.text());
+
+      expect(payerEmailText).toContain('Hi User One');
+      expect(payerEmailText).toContain('$50.00');
+      expect(payerEmailText).toContain('Paid to: User Two');
+      expect(payerEmailText).toContain('Notes: Payment for dinner');
+      expect(payerEmailText).toContain('Trip Expenses');
+    });
+
+    it('should send email to receiver with correct content', async () => {
+      await spec()
+        .post('/settlement')
+        .withBearerToken(user1.accessToken)
+        .withJson({
+          groupId,
+          fromMemberId: user1MemberId,
+          toMemberId: user2MemberId,
+          centAmount: 5000,
+          notes: 'Payment for dinner',
+        })
+        .expectStatus(201);
+
+      const emails = await getEmails();
+      const receiverEmail = emails.find((e) =>
+        e.subject.includes('You received a payment'),
+      );
+
+      expect(receiverEmail).toBeDefined();
+      expect(receiverEmail!.recipients).toContain(`<${user2.email}>`);
+
+      const receiverEmailText = await fetch(
+        `http://${process.env.EMAIL_HTTP_HOST}:${process.env.EMAIL_HTTP_PORT}/messages/${receiverEmail!.id}.plain`,
+      ).then((res) => res.text());
+
+      expect(receiverEmailText).toContain('Hi User Two');
+      expect(receiverEmailText).toContain('$50.00');
+      expect(receiverEmailText).toContain('From: User One');
+      expect(receiverEmailText).toContain('Notes: Payment for dinner');
+      expect(receiverEmailText).toContain('Trip Expenses');
+    });
+
+    it('should show "None" for notes in email when settlement has no notes', async () => {
+      await spec()
+        .post('/settlement')
+        .withBearerToken(user1.accessToken)
+        .withJson({
+          groupId,
+          fromMemberId: user1MemberId,
+          toMemberId: user2MemberId,
+          centAmount: 3000,
+        })
+        .expectStatus(201);
+
+      const lastEmail = await getLastEmail();
+      expect(lastEmail).not.toBeNull();
+      expect(lastEmail!.text).toContain('Notes: None');
     });
 
     it('should create a settlement without notes', async () => {

@@ -21,9 +21,9 @@ export class SettlementController {
   @UseGuards(JwtAuthGuard)
   create(
     @Body() createSettlementDto: CreateSettlementDto,
-    @Req() request: Request,
+    @Req() req: Request,
   ) {
-    const user = request.user as JWTUser;
+    const user = req.user as JWTUser;
     return this.settlementService.create(createSettlementDto, user.id);
   }
 

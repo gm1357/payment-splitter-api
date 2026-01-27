@@ -97,17 +97,18 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 
 ## 6. Email Notification
 
-| Feature                    | Status     | Notes |
-| -------------------------- | ---------- | ----- |
-| Notify on expense recorded | ❌ Missing |       |
-| Notify on debt settled     | ❌ Missing |       |
+| Feature                    | Status       | Notes                                          |
+| -------------------------- | ------------ | ---------------------------------------------- |
+| Notify on expense recorded | ✅ Completed | Emails sent to payer and all split members     |
+| Notify on debt settled     | ✅ Completed | Emails sent to both payer and receiver         |
 
-### Implementation needed:
+### Implementation details:
 
-- AWS SES or similar email service integration
-- Notification service module
-- Event-driven architecture (emit events on expense/settlement creation)
-- Consider: SQS/SNS for decoupling and handling high loads
+- **Email Service**: Nodemailer with SMTP transport (`src/infra/email.ts`)
+- **Expense Notifications**: Payer receives confirmation, split members receive their share details
+- **Settlement Notifications**: Payer receives payment confirmation, receiver receives payment notice
+- **Development**: MailCatcher for local email testing (SMTP: 1025, Web UI: 1080)
+- **Testing**: E2E tests verify email content via MailCatcher HTTP API
 
 ---
 
@@ -120,14 +121,13 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 | View Balances      | ✅ 100% Complete |
 | Settle Debts       | ✅ 100% Complete |
 | File Upload        | ❌ 0%            |
-| Email Notification | ❌ 0%            |
+| Email Notification | ✅ 100% Complete |
 
 ---
 
-## Suggested Implementation Order
+## Remaining Work
 
-1. **Email Notification** - Can be added as event listeners
-2. **File Upload** - Most complex, requires AWS integration
+1. **File Upload (CSV)** - Requires AWS S3 integration for file storage
 
 ---
 
