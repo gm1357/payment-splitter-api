@@ -2,6 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { ExpenseService } from './expense.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import email from 'src/infra/email';
+
+jest.mock('src/infra/email', () => ({
+  send: jest.fn(),
+}));
 
 describe('ExpenseService', () => {
   let service: ExpenseService;
@@ -16,6 +21,7 @@ describe('ExpenseService', () => {
     },
     expense: {
       create: jest.fn(),
+      findUnique: jest.fn(),
       findMany: jest.fn(),
     },
   };
@@ -45,8 +51,16 @@ describe('ExpenseService', () => {
 
     it('should create an expense with equal split among all members', async () => {
       const members = [
-        { id: 'member-1', joinedAt: new Date('2024-01-01') },
-        { id: 'member-2', joinedAt: new Date('2024-01-02') },
+        {
+          id: 'member-1',
+          joinedAt: new Date('2024-01-01'),
+          user: { name: 'Member 1', email: 'm1@example.com' },
+        },
+        {
+          id: 'member-2',
+          joinedAt: new Date('2024-01-02'),
+          user: { name: 'Member 2', email: 'm2@example.com' },
+        },
       ];
 
       const expectedExpense = {
@@ -62,12 +76,39 @@ describe('ExpenseService', () => {
         ],
       };
 
+      const expenseWithDetails = {
+        ...expectedExpense,
+        group: { name: 'Test Group' },
+        payer: { user: { name: 'Member 1', email: 'm1@example.com' } },
+        splits: [
+          {
+            groupMemberId: 'member-1',
+            centAmount: 5000,
+            groupMember: {
+              id: 'member-1',
+              user: { name: 'Member 1', email: 'm1@example.com' },
+            },
+          },
+          {
+            groupMemberId: 'member-2',
+            centAmount: 5000,
+            groupMember: {
+              id: 'member-2',
+              user: { name: 'Member 2', email: 'm2@example.com' },
+            },
+          },
+        ],
+      };
+
       mockPrismaService.group.findUnique.mockResolvedValue({ id: groupId });
       mockPrismaService.groupMember.findFirst.mockResolvedValue({
         id: 'member-1',
       });
       mockPrismaService.groupMember.findMany.mockResolvedValue(members);
       mockPrismaService.expense.create.mockResolvedValue(expectedExpense);
+      mockPrismaService.expense.findUnique.mockResolvedValue(
+        expenseWithDetails,
+      );
 
       const result = await service.create(createExpenseDto, userId);
 
@@ -91,6 +132,21 @@ describe('ExpenseService', () => {
           splits: true,
         },
       });
+
+      // Assert emails sent
+      expect(email.send).toHaveBeenCalledTimes(2); // 1 to payer, 1 to split member 2
+      expect(email.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'm1@example.com',
+          subject: 'Expense added - Test Group',
+        }),
+      );
+      expect(email.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'm2@example.com',
+          subject: 'New expense - Test Group',
+        }),
+      );
     });
 
     it('should distribute remainder to first members by joinedAt', async () => {
@@ -105,7 +161,8 @@ describe('ExpenseService', () => {
         id: 'member-1',
       });
       mockPrismaService.groupMember.findMany.mockResolvedValue(members);
-      mockPrismaService.expense.create.mockResolvedValue({});
+      mockPrismaService.expense.create.mockResolvedValue({ id: 'exp-1' });
+      mockPrismaService.expense.findUnique.mockResolvedValue(null); // Skipping notification logic for simplicity
 
       // 10001 / 3 = 3333 with remainder 2
       // First 2 members get 3334, third gets 3333
@@ -139,7 +196,8 @@ describe('ExpenseService', () => {
         .mockResolvedValueOnce({ id: 'member-1' }) // creator membership
         .mockResolvedValueOnce({ id: 'member-2' }); // payer membership
       mockPrismaService.groupMember.findMany.mockResolvedValue(members);
-      mockPrismaService.expense.create.mockResolvedValue({});
+      mockPrismaService.expense.create.mockResolvedValue({ id: 'exp-1' });
+      mockPrismaService.expense.findUnique.mockResolvedValue(null);
 
       await service.create(
         { ...createExpenseDto, paidByMemberId: 'member-2' },
@@ -203,7 +261,8 @@ describe('ExpenseService', () => {
           id: 'member-1',
         });
         mockPrismaService.groupMember.findMany.mockResolvedValue(members);
-        mockPrismaService.expense.create.mockResolvedValue({});
+        mockPrismaService.expense.create.mockResolvedValue({ id: 'exp-1' });
+        mockPrismaService.expense.findUnique.mockResolvedValue(null);
       });
 
       it('should create partial split with subset of members', async () => {

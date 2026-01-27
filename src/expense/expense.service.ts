@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import email from 'src/infra/email';
 
 @Injectable()
 export class ExpenseService {
@@ -119,7 +120,89 @@ export class ExpenseService {
       },
     });
 
+    // Fetch full details for notifications
+    const expenseWithDetails = await this.prisma.expense.findUnique({
+      where: { id: expense.id },
+      include: {
+        group: true,
+        payer: {
+          include: { user: true },
+        },
+        splits: {
+          include: {
+            groupMember: {
+              include: { user: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (expenseWithDetails) {
+      await this.sendExpenseNotifications(expenseWithDetails);
+    }
+
     return expense;
+  }
+
+  private async sendExpenseNotifications(expense: {
+    centAmount: number;
+    description: string;
+    group: { name: string };
+    payer: { user: { name: string; email: string } };
+    splits: {
+      centAmount: number;
+      groupMember: { id: string; user: { name: string; email: string } };
+    }[];
+  }) {
+    const amount = (expense.centAmount / 100).toFixed(2);
+    const groupName = expense.group.name;
+    const payerName = expense.payer.user.name;
+    const payerEmail = expense.payer.user.email;
+    const description = expense.description;
+
+    // Email to Payer
+    await email.send({
+      from: 'Payment Splitter <noreply@paymentsplitter.com>',
+      to: payerEmail,
+      subject: `Expense added - ${groupName}`,
+      text: `Hi ${payerName},
+
+You added an expense in ${groupName}.
+
+Description: ${description}
+Amount: $${amount}
+
+Thanks for using Payment Splitter!
+`,
+    });
+
+    // Email to each member in the split (excluding payer if they are in the split)
+    for (const split of expense.splits) {
+      if (split.groupMember.user.email === payerEmail) {
+        continue;
+      }
+
+      const memberName = split.groupMember.user.name;
+      const memberEmail = split.groupMember.user.email;
+      const splitAmount = (split.centAmount / 100).toFixed(2);
+
+      await email.send({
+        from: 'Payment Splitter <noreply@paymentsplitter.com>',
+        to: memberEmail,
+        subject: `New expense - ${groupName}`,
+        text: `Hi ${memberName},
+
+${payerName} added an expense in ${groupName}.
+
+Description: ${description}
+Total Amount: $${amount}
+Your Share: $${splitAmount}
+
+Thanks for using Payment Splitter!
+`,
+      });
+    }
   }
 
   async listByGroup(groupId: string, userId: string) {

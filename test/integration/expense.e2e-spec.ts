@@ -1,5 +1,12 @@
 import { INestApplication } from '@nestjs/common';
-import { createTestApp, resetDatabase, spec, TestUser } from './test-utils';
+import {
+  createTestApp,
+  deleteAllEmails,
+  getEmails,
+  resetDatabase,
+  spec,
+  TestUser,
+} from './test-utils';
 
 interface ExpenseSplit {
   centAmount: number;
@@ -22,6 +29,7 @@ describe('ExpenseController (e2e)', () => {
 
   beforeEach(async () => {
     await resetDatabase(app);
+    await deleteAllEmails();
 
     // Create user 1
     const user1Response = await spec()
@@ -160,6 +168,61 @@ describe('ExpenseController (e2e)', () => {
             ),
           ).toBe(true);
         });
+    });
+
+    it('should send emails to payer and involved members', async () => {
+      await spec()
+        .post('/expense')
+        .withBearerToken(user1.accessToken)
+        .withJson({
+          groupId,
+          description: 'Team Lunch',
+          centAmount: 6000,
+        })
+        .expectStatus(201);
+
+      const emailsSent = await getEmails();
+      // Expect 3 emails: 1 for payer (user1), 1 for user2, 1 for user3
+      expect(emailsSent.length).toBe(3);
+
+      const recipients = emailsSent.flatMap((e) => e.recipients);
+      expect(recipients).toContain(`<${user1.email}>`);
+      expect(recipients).toContain(`<${user2.email}>`);
+      expect(recipients).toContain(`<${user3.email}>`);
+
+      const subjects = emailsSent.map((e) => e.subject);
+      expect(subjects).toContain('Expense added - Trip Expenses');
+      expect(
+        subjects.filter((s) => s === 'New expense - Trip Expenses').length,
+      ).toBe(2);
+
+      // Verify content for payer
+      const payerEmail = emailsSent.find((e) =>
+        e.subject.includes('Expense added'),
+      );
+      const payerEmailText = await fetch(
+        `http://${process.env.EMAIL_HTTP_HOST}:${process.env.EMAIL_HTTP_PORT}/messages/${payerEmail!.id}.plain`,
+      ).then((res) => res.text());
+
+      expect(payerEmailText).toContain('Hi User One');
+      expect(payerEmailText).toContain('Description: Team Lunch');
+      expect(payerEmailText).toContain('Amount: $60.00');
+
+      // Verify content for one of the split members
+      const memberEmail = emailsSent.find(
+        (e) =>
+          e.subject.includes('New expense') &&
+          e.recipients.includes(`<${user2.email}>`),
+      );
+      const memberEmailText = await fetch(
+        `http://${process.env.EMAIL_HTTP_HOST}:${process.env.EMAIL_HTTP_PORT}/messages/${memberEmail!.id}.plain`,
+      ).then((res) => res.text());
+
+      expect(memberEmailText).toContain('Hi User Two');
+      expect(memberEmailText).toContain('User One added an expense');
+      expect(memberEmailText).toContain('Description: Team Lunch');
+      expect(memberEmailText).toContain('Total Amount: $60.00');
+      expect(memberEmailText).toContain('Your Share: $20.00');
     });
 
     it('should handle uneven splits correctly (remainder goes to first members by joinedAt)', async () => {
