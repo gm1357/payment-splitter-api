@@ -19,6 +19,8 @@ const MAX_ROWS = 500;
 const UUID_REGEX =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const POSITIVE_INTEGER_REGEX = /^[1-9][0-9]*$/;
+
 @Injectable()
 export class CsvParserService {
   parseAndValidate(
@@ -130,20 +132,13 @@ export class CsvParserService {
     }
 
     // Validate centAmount (required, positive integer)
-    const centAmount = parseInt(row.centAmount, 10);
-    if (isNaN(centAmount)) {
-      errors.push({
-        row: rowNumber,
-        field: 'centAmount',
-        message: 'Must be a valid integer',
-        value: row.centAmount || '',
-      });
-    } else if (centAmount <= 0) {
+    const centAmountStr = row.centAmount?.trim() || '';
+    if (!POSITIVE_INTEGER_REGEX.test(centAmountStr)) {
       errors.push({
         row: rowNumber,
         field: 'centAmount',
         message: 'Must be a positive integer',
-        value: row.centAmount,
+        value: row.centAmount || '',
       });
     }
 
@@ -206,7 +201,7 @@ export class CsvParserService {
 
     return {
       description: row.description.trim(),
-      centAmount: parseInt(row.centAmount, 10),
+      centAmount: Number(row.centAmount.trim()),
       paidByMemberId,
       includedMemberIds,
     };

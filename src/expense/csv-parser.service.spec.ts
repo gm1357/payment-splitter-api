@@ -112,7 +112,7 @@ Dinner,abc,,`;
       expect(result.errors[0]).toEqual({
         row: 2,
         field: 'centAmount',
-        message: 'Must be a valid integer',
+        message: 'Must be a positive integer',
         value: 'abc',
       });
     });
@@ -145,6 +145,28 @@ Dinner,0,,`;
         message: 'Must be a positive integer',
         value: '0',
       });
+    });
+
+    it('should return error for decimal centAmount', () => {
+      const csv = `description,centAmount,paidByMemberId,includedMemberIds
+Dinner,10.5,,`;
+
+      const result = service.parseAndValidate(csv, validMemberIds);
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].field).toBe('centAmount');
+      expect(result.errors[0].message).toBe('Must be a positive integer');
+    });
+
+    it('should return error for centAmount with trailing characters', () => {
+      const csv = `description,centAmount,paidByMemberId,includedMemberIds
+Dinner,1500abc,,`;
+
+      const result = service.parseAndValidate(csv, validMemberIds);
+
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].field).toBe('centAmount');
+      expect(result.errors[0].message).toBe('Must be a positive integer');
     });
 
     it('should return error for invalid UUID in paidByMemberId', () => {

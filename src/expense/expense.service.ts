@@ -290,9 +290,6 @@ Thanks for using Payment Splitter!
 
         const expense = await tx.expense.create({
           data: expenseData,
-          include: {
-            splits: true,
-          },
         });
 
         results.push({
