@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
 import { ExpenseService } from './expense.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { CsvParserService } from './csv-parser.service';
 import email from 'src/infra/email';
 
 jest.mock('src/infra/email', () => ({
@@ -27,6 +28,11 @@ describe('ExpenseService', () => {
       findUnique: jest.fn(),
       findMany: jest.fn(),
     },
+    $transaction: jest.fn(),
+  };
+
+  const mockCsvParserService = {
+    parseAndValidate: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -34,6 +40,7 @@ describe('ExpenseService', () => {
       providers: [
         ExpenseService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: CsvParserService, useValue: mockCsvParserService },
       ],
     }).compile();
 
@@ -514,6 +521,308 @@ describe('ExpenseService', () => {
       const result = await service.listByGroup(groupId, userId);
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('createBatch', () => {
+    const groupId = 'group-456';
+    const userId = 'user-123';
+    const csvContent = `description,centAmount,paidByMemberId,includedMemberIds
+Dinner,15000,,
+Taxi,3500,,`;
+
+    const members = [
+      {
+        id: 'member-1',
+        joinedAt: new Date('2024-01-01'),
+        user: { name: 'Member 1', email: 'm1@example.com' },
+      },
+      {
+        id: 'member-2',
+        joinedAt: new Date('2024-01-02'),
+        user: { name: 'Member 2', email: 'm2@example.com' },
+      },
+    ];
+
+    beforeEach(() => {
+      mockPrismaService.group.findUnique.mockResolvedValue({ id: groupId });
+      mockPrismaService.groupMember.findFirst.mockResolvedValue({
+        id: 'member-1',
+      });
+      mockPrismaService.groupMember.findMany.mockResolvedValue(members);
+    });
+
+    it('should create multiple expenses from valid CSV', async () => {
+      const parsedExpenses = [
+        {
+          description: 'Dinner',
+          centAmount: 15000,
+          paidByMemberId: null,
+          includedMemberIds: null,
+        },
+        {
+          description: 'Taxi',
+          centAmount: 3500,
+          paidByMemberId: null,
+          includedMemberIds: null,
+        },
+      ];
+
+      mockCsvParserService.parseAndValidate.mockReturnValue({
+        expenses: parsedExpenses,
+        errors: [],
+      });
+
+      const createdExpenses = [
+        { id: 'exp-1', description: 'Dinner', centAmount: 15000, splits: [] },
+        { id: 'exp-2', description: 'Taxi', centAmount: 3500, splits: [] },
+      ];
+
+      mockPrismaService.$transaction.mockImplementation(
+        // eslint-disable-next-line @typescript-eslint/require-await
+        async (callback: (tx: unknown) => unknown) => {
+          const mockTx = {
+            expense: {
+              create: jest
+                .fn()
+                .mockResolvedValueOnce(createdExpenses[0])
+                .mockResolvedValueOnce(createdExpenses[1]),
+            },
+          };
+          return callback(mockTx);
+        },
+      );
+
+      mockPrismaService.expense.findMany.mockResolvedValue([
+        {
+          id: 'exp-1',
+          description: 'Dinner',
+          centAmount: 15000,
+          group: { name: 'Test Group' },
+          payer: { user: { name: 'Member 1', email: 'm1@example.com' } },
+          splits: [
+            {
+              centAmount: 7500,
+              groupMember: {
+                id: 'member-1',
+                user: { name: 'Member 1', email: 'm1@example.com' },
+              },
+            },
+            {
+              centAmount: 7500,
+              groupMember: {
+                id: 'member-2',
+                user: { name: 'Member 2', email: 'm2@example.com' },
+              },
+            },
+          ],
+        },
+        {
+          id: 'exp-2',
+          description: 'Taxi',
+          centAmount: 3500,
+          group: { name: 'Test Group' },
+          payer: { user: { name: 'Member 1', email: 'm1@example.com' } },
+          splits: [
+            {
+              centAmount: 1750,
+              groupMember: {
+                id: 'member-1',
+                user: { name: 'Member 1', email: 'm1@example.com' },
+              },
+            },
+            {
+              centAmount: 1750,
+              groupMember: {
+                id: 'member-2',
+                user: { name: 'Member 2', email: 'm2@example.com' },
+              },
+            },
+          ],
+        },
+      ]);
+
+      const result = await service.createBatch(groupId, csvContent, userId);
+
+      expect(result.created).toBe(2);
+      expect(result.expenses).toHaveLength(2);
+      expect(result.expenses[0].description).toBe('Dinner');
+      expect(result.expenses[1].description).toBe('Taxi');
+
+      // Should send batch emails (2 users)
+      expect(email.send).toHaveBeenCalledTimes(2);
+    });
+
+    it('should throw BadRequestException when group does not exist', async () => {
+      mockPrismaService.group.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.createBatch(groupId, csvContent, userId),
+      ).rejects.toThrow(new BadRequestException('Group does not exist'));
+    });
+
+    it('should throw BadRequestException when user is not a member', async () => {
+      mockPrismaService.groupMember.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.createBatch(groupId, csvContent, userId),
+      ).rejects.toThrow(
+        new BadRequestException('You are not a member of this group'),
+      );
+    });
+
+    it('should throw BadRequestException when CSV has validation errors', async () => {
+      mockCsvParserService.parseAndValidate.mockReturnValue({
+        expenses: [],
+        errors: [
+          {
+            row: 2,
+            field: 'centAmount',
+            message: 'Must be a positive integer',
+            value: '-100',
+          },
+        ],
+      });
+
+      await expect(
+        service.createBatch(groupId, csvContent, userId),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException when CSV has no valid expenses', async () => {
+      mockCsvParserService.parseAndValidate.mockReturnValue({
+        expenses: [],
+        errors: [],
+      });
+
+      await expect(
+        service.createBatch(groupId, csvContent, userId),
+      ).rejects.toThrow(new BadRequestException('No valid expenses in CSV'));
+    });
+
+    it('should use specified paidByMemberId from CSV', async () => {
+      const parsedExpenses = [
+        {
+          description: 'Dinner',
+          centAmount: 15000,
+          paidByMemberId: 'member-2',
+          includedMemberIds: null,
+        },
+      ];
+
+      mockCsvParserService.parseAndValidate.mockReturnValue({
+        expenses: parsedExpenses,
+        errors: [],
+      });
+
+      let capturedData: unknown;
+      mockPrismaService.$transaction.mockImplementation(
+        // eslint-disable-next-line @typescript-eslint/require-await
+        async (callback: (tx: unknown) => unknown) => {
+          const mockTx = {
+            expense: {
+              create: jest.fn().mockImplementation((data: unknown) => {
+                capturedData = data;
+                return {
+                  id: 'exp-1',
+                  description: 'Dinner',
+                  centAmount: 15000,
+                  splits: [],
+                };
+              }),
+            },
+          };
+          return callback(mockTx);
+        },
+      );
+
+      mockPrismaService.expense.findMany.mockResolvedValue([
+        {
+          id: 'exp-1',
+          description: 'Dinner',
+          centAmount: 15000,
+          group: { name: 'Test Group' },
+          payer: { user: { name: 'Member 2', email: 'm2@example.com' } },
+          splits: [],
+        },
+      ]);
+
+      await service.createBatch(groupId, csvContent, userId);
+
+      expect(capturedData).toMatchObject({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        data: expect.objectContaining({
+          paidBy: 'member-2',
+        }),
+      });
+    });
+
+    it('should create partial split when includedMemberIds specified', async () => {
+      const parsedExpenses = [
+        {
+          description: 'Taxi',
+          centAmount: 3000,
+          paidByMemberId: null,
+          includedMemberIds: ['member-1'],
+        },
+      ];
+
+      mockCsvParserService.parseAndValidate.mockReturnValue({
+        expenses: parsedExpenses,
+        errors: [],
+      });
+
+      let capturedData: unknown;
+      mockPrismaService.$transaction.mockImplementation(
+        // eslint-disable-next-line @typescript-eslint/require-await
+        async (callback: (tx: unknown) => unknown) => {
+          const mockTx = {
+            expense: {
+              create: jest.fn().mockImplementation((data: unknown) => {
+                capturedData = data;
+                return {
+                  id: 'exp-1',
+                  description: 'Taxi',
+                  centAmount: 3000,
+                  splits: [],
+                };
+              }),
+            },
+          };
+          return callback(mockTx);
+        },
+      );
+
+      mockPrismaService.expense.findMany.mockResolvedValue([
+        {
+          id: 'exp-1',
+          description: 'Taxi',
+          centAmount: 3000,
+          group: { name: 'Test Group' },
+          payer: { user: { name: 'Member 1', email: 'm1@example.com' } },
+          splits: [
+            {
+              centAmount: 3000,
+              groupMember: {
+                id: 'member-1',
+                user: { name: 'Member 1', email: 'm1@example.com' },
+              },
+            },
+          ],
+        },
+      ]);
+
+      await service.createBatch(groupId, csvContent, userId);
+
+      expect(capturedData).toMatchObject({
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+        data: expect.objectContaining({
+          splitType: 'PARTIAL',
+          splits: {
+            create: [{ groupMemberId: 'member-1', centAmount: 3000 }],
+          },
+        }),
+      });
     });
   });
 });
