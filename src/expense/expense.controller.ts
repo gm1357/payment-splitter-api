@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Logger,
   MaxFileSizeValidator,
   Param,
   ParseFilePipe,
@@ -18,10 +19,16 @@ import { CreateExpenseDto } from './dto/create-expense.dto';
 import { UploadExpensesParamsDto } from './dto/upload-expenses.dto';
 import type { Request } from 'express';
 import { JWTUser } from 'src/auth/entity/jwt.entity';
+import { S3Service } from 'src/infra/s3/s3.service';
 
 @Controller('expense')
 export class ExpenseController {
-  constructor(private readonly expenseService: ExpenseService) {}
+  private readonly logger = new Logger(ExpenseController.name);
+
+  constructor(
+    private readonly expenseService: ExpenseService,
+    private readonly s3Service: S3Service,
+  ) {}
 
   @Post()
   @UseGuards(JwtAuthGuard)
@@ -33,7 +40,7 @@ export class ExpenseController {
   @Post('upload/:groupId')
   @UseGuards(JwtAuthGuard)
   @UseInterceptors(FileInterceptor('file'))
-  uploadExpenses(
+  async uploadExpenses(
     @Param() params: UploadExpensesParamsDto,
     @UploadedFile(
       new ParseFilePipe({
@@ -47,7 +54,22 @@ export class ExpenseController {
   ) {
     const user = request.user as JWTUser;
     const csvContent = file.buffer.toString('utf-8');
-    return this.expenseService.createBatch(params.groupId, csvContent, user.id);
+    const result = await this.expenseService.createBatch(
+      params.groupId,
+      csvContent,
+      user.id,
+    );
+
+    const timestamp = Date.now();
+    const filename = file.originalname || 'upload.csv';
+    const key = `expenses/${params.groupId}/${timestamp}-${filename}`;
+    this.s3Service
+      .upload(key, file.buffer, 'text/csv')
+      .catch((error: Error) =>
+        this.logger.warn(`Failed to upload CSV to S3: ${error.message}`),
+      );
+
+    return result;
   }
 
   @Get('group/:groupId')

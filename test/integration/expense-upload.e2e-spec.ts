@@ -1,9 +1,12 @@
 import { INestApplication } from '@nestjs/common';
 import {
+  clearS3Bucket,
   createTestApp,
   deleteAllEmails,
   getEmails,
   getEmailTextById,
+  getS3ObjectContent,
+  listS3Objects,
   resetDatabase,
   spec,
   TestUser,
@@ -26,6 +29,7 @@ describe('Expense Upload (e2e)', () => {
   beforeEach(async () => {
     await resetDatabase(app);
     await deleteAllEmails();
+    await clearS3Bucket();
 
     // Create user 1
     const user1Response = await spec()
@@ -520,6 +524,51 @@ Dinner,10001,,`;
         .map((s) => s.centAmount)
         .sort((a, b) => b - a);
       expect(amounts).toEqual([3334, 3334, 3333]);
+    });
+
+    it('should upload CSV to S3 after successful batch creation', async () => {
+      const csv = `description,centAmount,paidByMemberId,includedMemberIds
+Dinner,9000,,`;
+
+      await spec()
+        .post('/expense/upload/{groupId}')
+        .withPathParams('groupId', groupId)
+        .withBearerToken(user1.accessToken)
+        .withMultiPartFormData('file', Buffer.from(csv), {
+          filename: 'expenses.csv',
+        })
+        .expectStatus(201);
+
+      // Wait for fire-and-forget upload
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const objects = await listS3Objects(`expenses/${groupId}/`);
+      expect(objects).toHaveLength(1);
+      expect(objects[0].Key).toContain(`expenses/${groupId}/`);
+      expect(objects[0].Key).toContain('expenses.csv');
+
+      const content = await getS3ObjectContent(objects[0].Key!);
+      expect(content).toBe(csv);
+    });
+
+    it('should not upload to S3 when CSV validation fails', async () => {
+      const csv = `description,centAmount,paidByMemberId,includedMemberIds
+,-100,,`;
+
+      await spec()
+        .post('/expense/upload/{groupId}')
+        .withPathParams('groupId', groupId)
+        .withBearerToken(user1.accessToken)
+        .withMultiPartFormData('file', Buffer.from(csv), {
+          filename: 'expenses.csv',
+        })
+        .expectStatus(400);
+
+      // Wait to ensure nothing was uploaded
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const objects = await listS3Objects(`expenses/${groupId}/`);
+      expect(objects).toHaveLength(0);
     });
   });
 });
