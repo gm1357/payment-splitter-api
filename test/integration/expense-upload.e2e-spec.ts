@@ -7,9 +7,11 @@ import {
   getEmailTextById,
   getS3ObjectContent,
   listS3Objects,
+  purgeQueue,
   resetDatabase,
   spec,
   TestUser,
+  waitForExpenses,
 } from './test-utils';
 
 describe('Expense Upload (e2e)', () => {
@@ -30,6 +32,7 @@ describe('Expense Upload (e2e)', () => {
     await resetDatabase(app);
     await deleteAllEmails();
     await clearS3Bucket();
+    await purgeQueue();
 
     // Create user 1
     const user1Response = await spec()
@@ -142,7 +145,7 @@ describe('Expense Upload (e2e)', () => {
   });
 
   describe('POST /expense/upload/:groupId', () => {
-    it('should create multiple expenses from valid CSV', async () => {
+    it('should accept upload and create expenses asynchronously', async () => {
       const csv = `description,centAmount,paidByMemberId,includedMemberIds
 Dinner at restaurant,15000,,
 Taxi ride,3000,,`;
@@ -154,24 +157,19 @@ Taxi ride,3000,,`;
         .withMultiPartFormData('file', Buffer.from(csv), {
           filename: 'expenses.csv',
         })
-        .expectStatus(201)
+        .expectStatus(202)
         .expect((ctx) => {
-          expect(ctx.res.body.created).toBe(2);
-          expect(ctx.res.body.expenses).toHaveLength(2);
-          expect(ctx.res.body.expenses[0].description).toBe(
-            'Dinner at restaurant',
-          );
-          expect(ctx.res.body.expenses[0].centAmount).toBe(15000);
-          expect(ctx.res.body.expenses[1].description).toBe('Taxi ride');
-          expect(ctx.res.body.expenses[1].centAmount).toBe(3000);
+          expect(ctx.res.body.message).toBe('Upload accepted for processing');
+          expect(ctx.res.body.s3Key).toBeDefined();
         });
 
-      // Verify expenses were created
-      const expenses = await spec()
-        .get('/expense/group/{groupId}')
-        .withPathParams('groupId', groupId)
-        .withBearerToken(user1.accessToken)
-        .returns('res.body');
+      // Wait for async processing
+      const expenses = await waitForExpenses(
+        app,
+        groupId,
+        2,
+        user1.accessToken,
+      );
 
       expect(expenses).toHaveLength(2);
     });
@@ -187,17 +185,15 @@ Team Lunch,9000,${user2MemberId},`;
         .withMultiPartFormData('file', Buffer.from(csv), {
           filename: 'expenses.csv',
         })
-        .expectStatus(201)
-        .expect((ctx) => {
-          expect(ctx.res.body.created).toBe(1);
-        });
+        .expectStatus(202);
 
-      // Verify the payer was set correctly
-      const expenses = await spec()
-        .get('/expense/group/{groupId}')
-        .withPathParams('groupId', groupId)
-        .withBearerToken(user1.accessToken)
-        .returns('res.body');
+      // Wait for async processing
+      const expenses = (await waitForExpenses(
+        app,
+        groupId,
+        1,
+        user1.accessToken,
+      )) as { paidBy: string }[];
 
       expect(expenses[0].paidBy).toBe(user2MemberId);
     });
@@ -213,34 +209,33 @@ Gift for user3,6000,,${user1MemberId}|${user2MemberId}`;
         .withMultiPartFormData('file', Buffer.from(csv), {
           filename: 'expenses.csv',
         })
-        .expectStatus(201);
+        .expectStatus(202);
 
-      const expensesResponse: {
+      const expenses = (await waitForExpenses(
+        app,
+        groupId,
+        1,
+        user1.accessToken,
+      )) as {
         splitType: string;
         splits: { groupMemberId: string; centAmount: number }[];
-      }[] = await spec()
-        .get('/expense/group/{groupId}')
-        .withPathParams('groupId', groupId)
-        .withBearerToken(user1.accessToken)
-        .returns('res.body');
+      }[];
 
-      expect(expensesResponse[0].splitType).toBe('PARTIAL');
-      expect(expensesResponse[0].splits).toHaveLength(2);
-      expect(
-        expensesResponse[0].splits.every((s) => s.centAmount === 3000),
-      ).toBe(true);
-      expect(expensesResponse[0].splits.map((s) => s.groupMemberId)).toContain(
+      expect(expenses[0].splitType).toBe('PARTIAL');
+      expect(expenses[0].splits).toHaveLength(2);
+      expect(expenses[0].splits.every((s) => s.centAmount === 3000)).toBe(true);
+      expect(expenses[0].splits.map((s) => s.groupMemberId)).toContain(
         user1MemberId,
       );
-      expect(expensesResponse[0].splits.map((s) => s.groupMemberId)).toContain(
+      expect(expenses[0].splits.map((s) => s.groupMemberId)).toContain(
         user2MemberId,
       );
-      expect(
-        expensesResponse[0].splits.map((s) => s.groupMemberId),
-      ).not.toContain(user3MemberId);
+      expect(expenses[0].splits.map((s) => s.groupMemberId)).not.toContain(
+        user3MemberId,
+      );
     });
 
-    it('should send batch notification emails', async () => {
+    it('should send batch notification emails after async processing', async () => {
       const csv = `description,centAmount,paidByMemberId,includedMemberIds
 Dinner,9000,,
 Taxi,3000,,`;
@@ -252,7 +247,13 @@ Taxi,3000,,`;
         .withMultiPartFormData('file', Buffer.from(csv), {
           filename: 'expenses.csv',
         })
-        .expectStatus(201);
+        .expectStatus(202);
+
+      // Wait for async processing to complete
+      await waitForExpenses(app, groupId, 2, user1.accessToken);
+
+      // Wait a bit more for emails to be sent
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       const emailsSent = await getEmails();
       // Expect 3 batch emails: one per user
@@ -307,99 +308,6 @@ Dinner,15000`;
         .expectStatus(400);
     });
 
-    it('should return 400 for invalid centAmount', async () => {
-      const csv = `description,centAmount,paidByMemberId,includedMemberIds
-Dinner,-100,,`;
-
-      await spec()
-        .post('/expense/upload/{groupId}')
-        .withPathParams('groupId', groupId)
-        .withBearerToken(user1.accessToken)
-        .withMultiPartFormData('file', Buffer.from(csv), {
-          filename: 'expenses.csv',
-        })
-        .expectStatus(400)
-        .expect((ctx) => {
-          expect(ctx.res.body.errors[0].field).toBe('centAmount');
-          expect(ctx.res.body.errors[0].message).toBe(
-            'Must be a positive integer',
-          );
-        });
-    });
-
-    it('should return 400 for invalid paidByMemberId (non-member)', async () => {
-      const csv = `description,centAmount,paidByMemberId,includedMemberIds
-Dinner,15000,00000000-0000-0000-0000-000000000000,`;
-
-      await spec()
-        .post('/expense/upload/{groupId}')
-        .withPathParams('groupId', groupId)
-        .withBearerToken(user1.accessToken)
-        .withMultiPartFormData('file', Buffer.from(csv), {
-          filename: 'expenses.csv',
-        })
-        .expectStatus(400)
-        .expect((ctx) => {
-          expect(ctx.res.body.errors[0].field).toBe('paidByMemberId');
-          expect(ctx.res.body.errors[0].message).toBe(
-            'Not a member of this group',
-          );
-        });
-    });
-
-    it('should return 400 for invalid includedMemberIds (non-member)', async () => {
-      const csv = `description,centAmount,paidByMemberId,includedMemberIds
-Dinner,15000,,00000000-0000-0000-0000-000000000000|${user1MemberId}`;
-
-      await spec()
-        .post('/expense/upload/{groupId}')
-        .withPathParams('groupId', groupId)
-        .withBearerToken(user1.accessToken)
-        .withMultiPartFormData('file', Buffer.from(csv), {
-          filename: 'expenses.csv',
-        })
-        .expectStatus(400)
-        .expect((ctx) => {
-          expect(ctx.res.body.errors[0].field).toBe('includedMemberIds');
-          expect(ctx.res.body.errors[0].message).toContain(
-            'Not a member of this group',
-          );
-        });
-    });
-
-    it('should return row-level errors for multiple invalid rows', async () => {
-      const csv = `description,centAmount,paidByMemberId,includedMemberIds
-,15000,,
-Dinner,-100,,
-Valid expense,3000,,`;
-
-      await spec()
-        .post('/expense/upload/{groupId}')
-        .withPathParams('groupId', groupId)
-        .withBearerToken(user1.accessToken)
-        .withMultiPartFormData('file', Buffer.from(csv), {
-          filename: 'expenses.csv',
-        })
-        .expectStatus(400)
-        .expect((ctx) => {
-          const errors = ctx.res.body.errors as { row: number }[];
-          expect(errors.length).toBeGreaterThan(0);
-          // Row 2 has missing description
-          expect(errors.some((e) => e.row === 2)).toBe(true);
-          // Row 3 has negative amount
-          expect(errors.some((e) => e.row === 3)).toBe(true);
-        });
-
-      // No expenses should be created (all-or-nothing)
-      const expenses = await spec()
-        .get('/expense/group/{groupId}')
-        .withPathParams('groupId', groupId)
-        .withBearerToken(user1.accessToken)
-        .returns('res.body');
-
-      expect(expenses).toHaveLength(0);
-    });
-
     it('should return 400 for missing file', async () => {
       await spec()
         .post('/expense/upload/{groupId}')
@@ -419,49 +327,6 @@ Dinner,15000,,`;
           filename: 'expenses.csv',
         })
         .expectStatus(401);
-    });
-
-    it('should return 400 for non-existent group', async () => {
-      const csv = `description,centAmount,paidByMemberId,includedMemberIds
-Dinner,15000,,`;
-
-      await spec()
-        .post('/expense/upload/{groupId}')
-        .withPathParams('groupId', '00000000-0000-0000-0000-000000000000')
-        .withBearerToken(user1.accessToken)
-        .withMultiPartFormData('file', Buffer.from(csv), {
-          filename: 'expenses.csv',
-        })
-        .expectStatus(400);
-    });
-
-    it('should return 400 if user is not a member of the group', async () => {
-      // Create a fourth user who is not in the group
-      await spec().post('/user').withJson({
-        name: 'User Four',
-        email: 'user4@example.com',
-        password: 'password123',
-      });
-
-      const login4Response = await spec()
-        .post('/auth/login')
-        .withJson({
-          email: 'user4@example.com',
-          password: 'password123',
-        })
-        .returns('res.body');
-
-      const csv = `description,centAmount,paidByMemberId,includedMemberIds
-Dinner,15000,,`;
-
-      await spec()
-        .post('/expense/upload/{groupId}')
-        .withPathParams('groupId', groupId)
-        .withBearerToken(login4Response.access_token)
-        .withMultiPartFormData('file', Buffer.from(csv), {
-          filename: 'expenses.csv',
-        })
-        .expectStatus(400);
     });
 
     it('should return 400 for invalid groupId format', async () => {
@@ -489,12 +354,22 @@ Dinner,15000,,`;
         .withMultiPartFormData('file', Buffer.from(csv), {
           filename: 'expenses.csv',
         })
-        .expectStatus(201)
+        .expectStatus(202)
         .expect((ctx) => {
-          expect(ctx.res.body.expenses[0].description).toBe(
-            'Dinner at fancy restaurant, with wine',
-          );
+          expect(ctx.res.body.message).toBe('Upload accepted for processing');
+          expect(ctx.res.body.s3Key).toBeDefined();
         });
+
+      const expenses = (await waitForExpenses(
+        app,
+        groupId,
+        1,
+        user1.accessToken,
+      )) as { description: string }[];
+
+      expect(expenses[0].description).toBe(
+        'Dinner at fancy restaurant, with wine',
+      );
     });
 
     it('should distribute remainder correctly for uneven splits', async () => {
@@ -508,55 +383,51 @@ Dinner,10001,,`;
         .withMultiPartFormData('file', Buffer.from(csv), {
           filename: 'expenses.csv',
         })
-        .expectStatus(201);
+        .expectStatus(202);
 
-      const expensesResponse: {
+      const expenses = (await waitForExpenses(
+        app,
+        groupId,
+        1,
+        user1.accessToken,
+      )) as {
         splits: { centAmount: number }[];
-      }[] = await spec()
-        .get('/expense/group/{groupId}')
-        .withPathParams('groupId', groupId)
-        .withBearerToken(user1.accessToken)
-        .returns('res.body');
+      }[];
 
       // 10001 / 3 = 3333 with remainder 2
       // First 2 members get 3334, third gets 3333
-      const amounts = expensesResponse[0].splits
+      const amounts = expenses[0].splits
         .map((s) => s.centAmount)
         .sort((a, b) => b - a);
       expect(amounts).toEqual([3334, 3334, 3333]);
     });
 
-    it('should upload CSV to S3 after successful batch creation', async () => {
+    it('should upload CSV to S3 on accepted upload', async () => {
       const csv = `description,centAmount,paidByMemberId,includedMemberIds
 Dinner,9000,,`;
 
-      await spec()
+      const response = await spec()
         .post('/expense/upload/{groupId}')
         .withPathParams('groupId', groupId)
         .withBearerToken(user1.accessToken)
         .withMultiPartFormData('file', Buffer.from(csv), {
           filename: 'expenses.csv',
         })
-        .expectStatus(201);
+        .expectStatus(202)
+        .returns('res.body');
 
-      // Poll for fire-and-forget upload to complete
-      let objects = await listS3Objects(`expenses/${groupId}/`);
-      const deadline = Date.now() + 5000;
-      while (objects.length === 0 && Date.now() < deadline) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        objects = await listS3Objects(`expenses/${groupId}/`);
-      }
+      // S3 upload is now synchronous (awaited), so object should exist immediately
+      const objects = await listS3Objects(`expenses/${groupId}/`);
       expect(objects).toHaveLength(1);
-      expect(objects[0].Key).toContain(`expenses/${groupId}/`);
-      expect(objects[0].Key).toContain('expenses.csv');
+      expect(objects[0].Key).toBe(response.s3Key);
 
       const content = await getS3ObjectContent(objects[0].Key!);
       expect(content).toBe(csv);
     });
 
-    it('should not upload to S3 when CSV validation fails', async () => {
-      const csv = `description,centAmount,paidByMemberId,includedMemberIds
-,-100,,`;
+    it('should not upload to S3 when CSV structure validation fails', async () => {
+      const csv = `description,amount
+Dinner,15000`;
 
       await spec()
         .post('/expense/upload/{groupId}')
@@ -566,10 +437,6 @@ Dinner,9000,,`;
           filename: 'expenses.csv',
         })
         .expectStatus(400);
-
-      // Proving a negative requires a fixed wait; 1s is a reasonable trade-off
-      // between CI reliability and test speed.
-      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const objects = await listS3Objects(`expenses/${groupId}/`);
       expect(objects).toHaveLength(0);

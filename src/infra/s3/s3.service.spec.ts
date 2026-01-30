@@ -15,6 +15,12 @@ jest.mock('@aws-sdk/client-s3', () => {
         ...input,
         _command: 'PutObjectCommand',
       })),
+    GetObjectCommand: jest
+      .fn()
+      .mockImplementation((input: Record<string, unknown>) => ({
+        ...input,
+        _command: 'GetObjectCommand',
+      })),
     CreateBucketCommand: jest
       .fn()
       .mockImplementation((input: Record<string, unknown>) => ({
@@ -116,6 +122,35 @@ describe('S3Service', () => {
       await expect(
         service.upload('test-key', Buffer.from('data'), 'text/csv'),
       ).rejects.toThrow('Upload failed');
+    });
+  });
+
+  describe('download', () => {
+    it('should call GetObjectCommand and return string content', async () => {
+      mockSend.mockResolvedValueOnce({
+        Body: {
+          transformToString: jest.fn().mockResolvedValue('csv-content-here'),
+        },
+      });
+
+      const result = await service.download('test-key');
+
+      expect(result).toBe('csv-content-here');
+      expect(mockSend).toHaveBeenCalledWith(
+        expect.objectContaining({
+          Bucket: 'test-bucket',
+          Key: 'test-key',
+          _command: 'GetObjectCommand',
+        }),
+      );
+    });
+
+    it('should propagate error on download failure', async () => {
+      mockSend.mockRejectedValueOnce(new Error('Download failed'));
+
+      await expect(service.download('test-key')).rejects.toThrow(
+        'Download failed',
+      );
     });
   });
 });

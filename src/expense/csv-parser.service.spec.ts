@@ -17,6 +17,63 @@ describe('CsvParserService', () => {
     service = module.get<CsvParserService>(CsvParserService);
   });
 
+  describe('validateStructure', () => {
+    it('should return valid for a well-formed CSV', () => {
+      const csv = `description,centAmount,paidByMemberId,includedMemberIds
+Dinner,15000,,`;
+
+      const result = service.validateStructure(csv);
+
+      expect(result).toEqual({ valid: true });
+    });
+
+    it('should return error for empty CSV', () => {
+      const result = service.validateStructure('');
+
+      expect(result).toEqual({ valid: false, error: 'CSV file is empty' });
+    });
+
+    it('should return error for missing required headers', () => {
+      const csv = `description,amount
+Dinner,15000`;
+
+      const result = service.validateStructure(csv);
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('Missing required headers');
+    });
+
+    it('should return error for exceeding max rows', () => {
+      const header = 'description,centAmount,paidByMemberId,includedMemberIds';
+      const rows = Array(501).fill('Dinner,1500,,').join('\n');
+      const csv = `${header}\n${rows}`;
+
+      const result = service.validateStructure(csv);
+
+      expect(result.valid).toBe(false);
+      expect(result.error).toContain('exceeds maximum of 500 rows');
+    });
+
+    it('should return error for invalid CSV format', () => {
+      const csv = `description,centAmount,paidByMemberId,includedMemberIds
+"unclosed quote,15000,,`;
+
+      const result = service.validateStructure(csv);
+
+      expect(result).toEqual({ valid: false, error: 'Invalid CSV format' });
+    });
+
+    it('should not validate row-level business rules', () => {
+      // Invalid centAmount and missing description should pass structure validation
+      const csv = `description,centAmount,paidByMemberId,includedMemberIds
+,-100,,`;
+
+      const result = service.validateStructure(csv);
+
+      expect(result).toEqual({ valid: true });
+    });
+  });
+
   describe('parseAndValidate', () => {
     it('should parse a valid CSV with all fields', () => {
       const csv = `description,centAmount,paidByMemberId,includedMemberIds

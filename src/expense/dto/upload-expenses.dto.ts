@@ -39,3 +39,19 @@ export interface BatchCreateResult {
     centAmount: number;
   }[];
 }
+
+export interface CsvStructureValidation {
+  valid: boolean;
+  error?: string;
+}
+
+export interface ExpenseUploadMessage {
+  s3Key: string;
+  groupId: string;
+  userId: string;
+}
+
+export interface UploadAcceptedResponse {
+  message: string;
+  s3Key: string;
+}

@@ -1,7 +1,9 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
+  HttpCode,
   Logger,
   MaxFileSizeValidator,
   Param,
@@ -16,10 +18,16 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ExpenseService } from './expense.service';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { CreateExpenseDto } from './dto/create-expense.dto';
-import { UploadExpensesParamsDto } from './dto/upload-expenses.dto';
+import {
+  ExpenseUploadMessage,
+  UploadAcceptedResponse,
+  UploadExpensesParamsDto,
+} from './dto/upload-expenses.dto';
 import type { Request } from 'express';
 import { JWTUser } from 'src/auth/entity/jwt.entity';
 import { S3Service } from 'src/infra/s3/s3.service';
+import { SqsService } from 'src/infra/sqs/sqs.service';
+import { CsvParserService } from './csv-parser.service';
 
 @Controller('expense')
 export class ExpenseController {
@@ -28,6 +36,8 @@ export class ExpenseController {
   constructor(
     private readonly expenseService: ExpenseService,
     private readonly s3Service: S3Service,
+    private readonly sqsService: SqsService,
+    private readonly csvParserService: CsvParserService,
   ) {}
 
   @Post()
@@ -39,6 +49,7 @@ export class ExpenseController {
 
   @Post('upload/:groupId')
   @UseGuards(JwtAuthGuard)
+  @HttpCode(202)
   @UseInterceptors(
     FileInterceptor('file', { limits: { fileSize: 1024 * 1024 } }),
   )
@@ -53,28 +64,52 @@ export class ExpenseController {
     )
     file: Express.Multer.File,
     @Req() request: Request,
-  ) {
+  ): Promise<UploadAcceptedResponse> {
     const user = request.user as JWTUser;
     const csvContent = file.buffer.toString('utf-8');
-    const result = await this.expenseService.createBatch(
-      params.groupId,
-      csvContent,
-      user.id,
-    );
 
+    // Validate CSV structure synchronously (format, headers, row count)
+    const validation = this.csvParserService.validateStructure(csvContent);
+    if (!validation.valid) {
+      const errorMsg = validation.error ?? '';
+      throw new BadRequestException({
+        message: 'CSV validation failed',
+        errors: [
+          {
+            row: 0,
+            field: errorMsg.includes('headers') ? 'headers' : 'csv',
+            message: errorMsg,
+            value: '',
+          },
+        ],
+      });
+    }
+
+    // Upload to S3
     const timestamp = Date.now();
     const filename = (file.originalname || 'upload.csv').replace(
       /[^a-zA-Z0-9._-]/g,
       '_',
     );
     const key = `expenses/${params.groupId}/${timestamp}-${filename}`;
-    this.s3Service
-      .upload(key, file.buffer, 'text/csv')
-      .catch((error: Error) =>
-        this.logger.warn(`Failed to upload CSV to S3: ${error.message}`),
-      );
+    await this.s3Service.upload(key, file.buffer, 'text/csv');
 
-    return result;
+    // Send SQS message for async processing
+    const message: ExpenseUploadMessage = {
+      s3Key: key,
+      groupId: params.groupId,
+      userId: user.id,
+    };
+    await this.sqsService.sendMessage(message);
+
+    this.logger.log(
+      `Upload accepted for group ${params.groupId}, S3 key: ${key}`,
+    );
+
+    return {
+      message: 'Upload accepted for processing',
+      s3Key: key,
+    };
   }
 
   @Get('group/:groupId')

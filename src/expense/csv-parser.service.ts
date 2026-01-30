@@ -3,6 +3,7 @@ import { parse } from 'csv-parse/sync';
 import {
   CsvExpenseRow,
   CsvParseResult,
+  CsvStructureValidation,
   RowError,
   ValidatedExpenseRow,
 } from './dto/upload-expenses.dto';
@@ -23,6 +24,42 @@ const POSITIVE_INTEGER_REGEX = /^[1-9][0-9]*$/;
 
 @Injectable()
 export class CsvParserService {
+  validateStructure(csvContent: string): CsvStructureValidation {
+    let records: CsvExpenseRow[];
+    try {
+      records = parse(csvContent, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true,
+      });
+    } catch {
+      return { valid: false, error: 'Invalid CSV format' };
+    }
+
+    if (records.length === 0) {
+      return { valid: false, error: 'CSV file is empty' };
+    }
+
+    const headers = Object.keys(records[0]);
+    const missingHeaders = REQUIRED_HEADERS.filter((h) => !headers.includes(h));
+
+    if (missingHeaders.length > 0) {
+      return {
+        valid: false,
+        error: `Missing required headers: ${missingHeaders.join(', ')}`,
+      };
+    }
+
+    if (records.length > MAX_ROWS) {
+      return {
+        valid: false,
+        error: `CSV file exceeds maximum of ${MAX_ROWS} rows`,
+      };
+    }
+
+    return { valid: true };
+  }
+
   parseAndValidate(
     csvContent: string,
     validMemberIds: Set<string>,

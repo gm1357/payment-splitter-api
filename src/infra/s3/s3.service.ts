@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
   PutObjectCommand,
+  GetObjectCommand,
   CreateBucketCommand,
   HeadBucketCommand,
 } from '@aws-sdk/client-s3';
@@ -73,5 +74,17 @@ export class S3Service implements OnModuleInit {
       }),
     );
     this.logger.log(`Uploaded object to S3: ${key}`);
+  }
+
+  async download(key: string): Promise<string> {
+    const response = await this.client.send(
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      }),
+    );
+    const content = await response.Body!.transformToString('utf-8');
+    this.logger.log(`Downloaded object from S3: ${key}`);
+    return content;
   }
 }
