@@ -14,7 +14,11 @@ export class S3Service implements OnModuleInit {
   private readonly bucket: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.bucket = this.configService.get<string>('AWS_S3_BUCKET')!;
+    const bucket = this.configService.get<string>('AWS_S3_BUCKET');
+    if (!bucket) {
+      throw new Error('AWS_S3_BUCKET environment variable is not set');
+    }
+    this.bucket = bucket;
 
     this.client = new S3Client({
       endpoint: this.configService.get<string>('AWS_S3_ENDPOINT'),
@@ -37,7 +41,18 @@ export class S3Service implements OnModuleInit {
     try {
       await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
       this.logger.log(`S3 bucket "${this.bucket}" already exists`);
-    } catch {
+    } catch (error: unknown) {
+      const isNotFound =
+        error instanceof Error &&
+        ('$metadata' in error
+          ? (error as { $metadata: { httpStatusCode?: number } }).$metadata
+              .httpStatusCode === 404
+          : error.name === 'NotFound');
+
+      if (!isNotFound) {
+        throw error;
+      }
+
       this.logger.log(`Creating S3 bucket "${this.bucket}"...`);
       await this.client.send(new CreateBucketCommand({ Bucket: this.bucket }));
       this.logger.log(`S3 bucket "${this.bucket}" created`);

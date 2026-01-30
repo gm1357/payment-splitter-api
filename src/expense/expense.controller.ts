@@ -39,7 +39,9 @@ export class ExpenseController {
 
   @Post('upload/:groupId')
   @UseGuards(JwtAuthGuard)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 1024 * 1024 } }),
+  )
   async uploadExpenses(
     @Param() params: UploadExpensesParamsDto,
     @UploadedFile(
@@ -61,7 +63,10 @@ export class ExpenseController {
     );
 
     const timestamp = Date.now();
-    const filename = file.originalname || 'upload.csv';
+    const filename = (file.originalname || 'upload.csv').replace(
+      /[^a-zA-Z0-9._-]/g,
+      '_',
+    );
     const key = `expenses/${params.groupId}/${timestamp}-${filename}`;
     this.s3Service
       .upload(key, file.buffer, 'text/csv')

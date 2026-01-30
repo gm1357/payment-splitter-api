@@ -159,11 +159,19 @@ export async function clearS3Bucket() {
     return;
   }
 
+  const keys: string[] = objects.Contents.map((obj) => obj.Key).filter(
+    (key): key is string => key !== undefined,
+  );
+
+  if (keys.length === 0) {
+    return;
+  }
+
   await s3Client.send(
     new DeleteObjectsCommand({
       Bucket: S3_BUCKET,
       Delete: {
-        Objects: objects.Contents.map((obj) => ({ Key: obj.Key })),
+        Objects: keys.map((key) => ({ Key: key })),
       },
     }),
   );

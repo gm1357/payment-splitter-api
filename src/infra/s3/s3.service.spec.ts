@@ -75,7 +75,10 @@ describe('S3Service', () => {
     });
 
     it('should create bucket if it does not exist', async () => {
-      mockSend.mockRejectedValueOnce(new Error('Not found'));
+      const notFoundError = Object.assign(new Error('Not found'), {
+        $metadata: { httpStatusCode: 404 },
+      });
+      mockSend.mockRejectedValueOnce(notFoundError);
       mockSend.mockResolvedValueOnce({});
 
       await service.onModuleInit();

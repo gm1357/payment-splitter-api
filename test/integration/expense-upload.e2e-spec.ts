@@ -539,10 +539,13 @@ Dinner,9000,,`;
         })
         .expectStatus(201);
 
-      // Wait for fire-and-forget upload
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      const objects = await listS3Objects(`expenses/${groupId}/`);
+      // Poll for fire-and-forget upload to complete
+      let objects = await listS3Objects(`expenses/${groupId}/`);
+      const deadline = Date.now() + 5000;
+      while (objects.length === 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        objects = await listS3Objects(`expenses/${groupId}/`);
+      }
       expect(objects).toHaveLength(1);
       expect(objects[0].Key).toContain(`expenses/${groupId}/`);
       expect(objects[0].Key).toContain('expenses.csv');
@@ -564,8 +567,9 @@ Dinner,9000,,`;
         })
         .expectStatus(400);
 
-      // Wait to ensure nothing was uploaded
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Proving a negative requires a fixed wait; 1s is a reasonable trade-off
+      // between CI reliability and test speed.
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       const objects = await listS3Objects(`expenses/${groupId}/`);
       expect(objects).toHaveLength(0);
