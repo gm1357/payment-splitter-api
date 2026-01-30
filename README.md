@@ -8,6 +8,7 @@ A NestJS-based REST API for splitting expenses among group members. Users can cr
 - **Database**: PostgreSQL
 - **ORM**: Prisma
 - **Authentication**: JWT + Passport
+- **Cloud Services**: AWS S3 + SQS (LocalStack for local dev)
 - **Testing**: Jest + Pactum
 
 ## Prerequisites
@@ -34,6 +35,7 @@ This starts:
 - PostgreSQL on port 5432
 - Adminer (DB UI) on port 8080
 - MailCatcher (email testing) - SMTP on port 1025, Web UI on port 1080
+- LocalStack (AWS S3/SQS mock) on port 4566
 
 ### 3. Configure environment
 
@@ -52,6 +54,19 @@ Email configuration (defaults work with MailCatcher for local dev):
 - `EMAIL_SMTP_PASSWORD` - SMTP password (optional for MailCatcher)
 - `EMAIL_HTTP_HOST` - MailCatcher HTTP API host (for tests)
 - `EMAIL_HTTP_PORT` - MailCatcher HTTP API port (for tests)
+
+AWS configuration (defaults work with LocalStack for local dev):
+- `AWS_S3_ENDPOINT` - S3 endpoint URL
+- `AWS_S3_REGION` - S3 region
+- `AWS_S3_BUCKET` - S3 bucket name (auto-created if missing)
+- `AWS_S3_ACCESS_KEY_ID` - S3 access key
+- `AWS_S3_SECRET_ACCESS_KEY` - S3 secret key
+- `AWS_SQS_ENDPOINT` - SQS endpoint URL
+- `AWS_SQS_REGION` - SQS region
+- `AWS_SQS_QUEUE_NAME` - SQS queue name (auto-created if missing)
+- `AWS_SQS_ACCESS_KEY_ID` - SQS access key
+- `AWS_SQS_SECRET_ACCESS_KEY` - SQS secret key
+- `AWS_SQS_POLL_WAIT_SECONDS` - SQS long polling timeout
 
 ### 4. Run database migrations
 
@@ -110,6 +125,7 @@ The API will be available at `http://localhost:3000`.
 
 ### Expenses
 - `POST /expense` - Create an expense with automatic splitting (authenticated)
+- `POST /expense/upload/:groupId` - Upload CSV for batch expense creation (authenticated, returns 202)
 - `GET /expense/group/:groupId` - List expenses for a group (authenticated)
 
 ### Balances
@@ -120,10 +136,34 @@ The API will be available at `http://localhost:3000`.
 - `POST /settlement` - Record a settlement between members (authenticated)
 - `GET /settlement/group/:groupId` - List settlements for a group (authenticated)
 
+## CSV Bulk Upload
+
+Upload a CSV file to create multiple expenses at once via `POST /expense/upload/:groupId`.
+
+**How it works:**
+1. CSV is validated synchronously (structure and field format)
+2. File is uploaded to S3 and an SQS message is queued
+3. The endpoint returns `202 Accepted` immediately
+4. A background SQS consumer downloads the CSV, creates expenses in a transaction, and sends batch notification emails
+
+**CSV format:**
+```csv
+description,centAmount,paidByMemberId,includedMemberIds
+Lunch,2500,,
+Dinner,5000,<member-uuid>,<uuid1>|<uuid2>
+```
+
+- `description` (required) - Expense description
+- `centAmount` (required) - Amount in cents (positive integer)
+- `paidByMemberId` (optional) - UUID of payer, defaults to uploader
+- `includedMemberIds` (optional) - Pipe-separated UUIDs for partial split, defaults to all members
+- Max 500 rows per file, max 1MB file size
+
 ## Email Notifications
 
 The API sends email notifications for:
 - **Expense creation**: Payer receives confirmation, split members receive their share details
+- **Batch upload**: Each affected member receives a single summary email with all their expenses
 - **Settlement creation**: Payer receives payment confirmation, receiver receives payment notice
 
 For local development, MailCatcher captures all emails. View them at `http://localhost:1080`.
@@ -138,7 +178,7 @@ src/
 ├── expense/        # Expense tracking and splitting
 ├── settlement/     # Debt settlement between members
 ├── balance/        # Balance calculation and settlement suggestions
-├── infra/          # Infrastructure (email service)
+├── infra/          # Infrastructure (email, S3, SQS services)
 ├── prisma/         # Database service
 └── main.ts         # Application entry point
 

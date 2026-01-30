@@ -79,19 +79,25 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 
 ## 5. File Upload Feature (CSV)
 
-| Feature                            | Status     | Notes |
-| ---------------------------------- | ---------- | ----- |
-| Upload CSV with batch expenses     | ❌ Missing |       |
-| Cloud storage integration (AWS S3) | ❌ Missing |       |
-| Process uploaded file              | ❌ Missing |       |
+| Feature                            | Status       | Notes                                                  |
+| ---------------------------------- | ------------ | ------------------------------------------------------ |
+| Upload CSV with batch expenses     | ✅ Completed | `POST /expense/upload/:groupId` (multipart/form-data)  |
+| Cloud storage integration (AWS S3) | ✅ Completed | S3 for file storage, LocalStack for local dev          |
+| Async processing (AWS SQS)        | ✅ Completed | SQS consumer polls and processes uploads asynchronously |
+| CSV parsing and validation         | ✅ Completed | `CsvParserService` with row-level error reporting      |
+| Batch expense creation             | ✅ Completed | Transactional batch creation via `createBatch()`       |
+| Batch email notifications          | ✅ Completed | Single summary email per affected user                 |
 
-### Implementation needed:
+### Implementation details:
 
-- AWS S3 integration for file storage
-- `POST /expense/upload` endpoint (multipart/form-data)
-- CSV parsing and validation
-- Batch expense creation
-- Consider: SQS for async processing at scale
+- **Upload Flow**: Two-stage async architecture
+  1. `POST /expense/upload/:groupId` - Validates CSV structure, uploads to S3, sends SQS message, returns 202
+  2. SQS consumer polls messages, downloads CSV from S3, creates expenses in a transaction
+- **CSV Format**: Headers: `description`, `centAmount`, `paidByMemberId` (optional), `includedMemberIds` (optional, pipe-separated UUIDs)
+- **Validation**: Max 500 rows, positive integer amounts, UUID format checks, group membership validation
+- **S3 Key Format**: `expenses/{groupId}/{timestamp}-{filename}`
+- **Infrastructure**: LocalStack for local S3/SQS mocking via docker-compose
+- **Batch Notifications**: Groups expenses by user, sends one summary email per affected member
 
 ---
 
@@ -120,14 +126,14 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 | Add Expenses       | ✅ 100% Complete |
 | View Balances      | ✅ 100% Complete |
 | Settle Debts       | ✅ 100% Complete |
-| File Upload        | ❌ 0%            |
+| File Upload        | ✅ 100% Complete |
 | Email Notification | ✅ 100% Complete |
 
 ---
 
 ## Remaining Work
 
-1. **File Upload (CSV)** - Requires AWS S3 integration for file storage
+All features are complete.
 
 ---
 
@@ -136,11 +142,12 @@ Based on the take-home assignment for a peer-to-peer payment splitter backend sy
 - **Database**: PostgreSQL with Prisma ORM ✅
 - **Authentication**: JWT + Passport (implemented, though not required by assignment)
 - **Validation**: class-validator with global ValidationPipe ✅
+- **Cloud Services**: AWS S3 (file storage) + SQS (async job queue), LocalStack for local dev
 - **Testing:**
-  - Unit tests: Co-located with source (`src/**/*.spec.ts`), Jest with mocked dependencies (66 tests)
-  - Integration tests: `test/integration/*.e2e-spec.ts`, uses pactum for HTTP assertions (80 tests)
-  - Test utilities: `createTestApp()`, `resetDatabase()`, `spec()` in `test-utils.ts`
+  - Unit tests: Co-located with source (`src/**/*.spec.ts`), Jest with mocked dependencies
+  - Integration tests: `test/integration/*.e2e-spec.ts`, uses pactum for HTTP assertions
+  - Test utilities: `createTestApp()`, `resetDatabase()`, `spec()`, S3/SQS helpers in `test-utils.ts`
 - **CI/CD:**
   - GitHub Actions workflows in `.github/workflows/`
   - `unit-tests.yml` - Runs on push/PR, no database required
-  - `e2e-tests.yml` - Runs on push/PR, uses PostgreSQL service container
+  - `e2e-tests.yml` - Runs on push/PR, uses PostgreSQL and LocalStack service containers
