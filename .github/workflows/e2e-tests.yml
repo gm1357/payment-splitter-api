@@ -28,6 +28,14 @@ jobs:
         ports:
           - '1025:1025'
           - '1080:1080'
+      aws-mock:
+        image: 'localstack/localstack'
+        ports:
+          - '4566:4566'
+          - '4510-4559:4510-4559'
+        env:
+          DEBUG: 1
+          SERVICES: s3,sqs
 
     steps:
       - uses: actions/checkout@v4
@@ -60,3 +68,14 @@ jobs:
           EMAIL_SMTP_PASSWORD:
           EMAIL_HTTP_HOST: localhost
           EMAIL_HTTP_PORT: 1080
+          AWS_S3_ENDPOINT: http://localhost:4566
+          AWS_S3_REGION: us-east-1
+          AWS_S3_BUCKET: expense-uploads
+          AWS_S3_ACCESS_KEY_ID: test
+          AWS_S3_SECRET_ACCESS_KEY: test
+          AWS_SQS_ENDPOINT: http://localhost:4566
+          AWS_SQS_REGION: us-east-1
+          AWS_SQS_QUEUE_NAME: expense-upload-queue
+          AWS_SQS_ACCESS_KEY_ID: test
+          AWS_SQS_SECRET_ACCESS_KEY: test
+          AWS_SQS_POLL_WAIT_SECONDS: 1

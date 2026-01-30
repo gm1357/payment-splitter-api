@@ -3,8 +3,42 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { AppModule } from 'src/app.module';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { request, spec } from 'pactum';
+import {
+  S3Client,
+  ListObjectsV2Command,
+  GetObjectCommand,
+  DeleteObjectsCommand,
+} from '@aws-sdk/client-s3';
+import {
+  SQSClient,
+  PurgeQueueCommand,
+  GetQueueUrlCommand,
+} from '@aws-sdk/client-sqs';
 
 const EMAIL_HTTP_URL = `http://${process.env.EMAIL_HTTP_HOST}:${process.env.EMAIL_HTTP_PORT}`;
+
+const s3Client = new S3Client({
+  endpoint: process.env.AWS_S3_ENDPOINT || 'http://localhost:4566',
+  region: process.env.AWS_S3_REGION || 'us-east-1',
+  forcePathStyle: true,
+  credentials: {
+    accessKeyId: process.env.AWS_S3_ACCESS_KEY_ID || 'test',
+    secretAccessKey: process.env.AWS_S3_SECRET_ACCESS_KEY || 'test',
+  },
+});
+
+const S3_BUCKET = process.env.AWS_S3_BUCKET || 'expense-uploads';
+
+const sqsClient = new SQSClient({
+  endpoint: process.env.AWS_SQS_ENDPOINT || 'http://localhost:4566',
+  region: process.env.AWS_SQS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_SQS_ACCESS_KEY_ID || 'test',
+    secretAccessKey: process.env.AWS_SQS_SECRET_ACCESS_KEY || 'test',
+  },
+});
+
+const SQS_QUEUE_NAME = process.env.AWS_SQS_QUEUE_NAME || 'expense-upload-queue';
 
 export async function createTestApp(): Promise<INestApplication> {
   const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -116,6 +150,87 @@ export async function getLastEmail() {
     ...lastEmailItem,
     text: emailTextBody,
   };
+}
+
+export async function listS3Objects(prefix: string) {
+  const response = await s3Client.send(
+    new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: prefix }),
+  );
+  return response.Contents ?? [];
+}
+
+export async function getS3ObjectContent(key: string): Promise<string> {
+  const response = await s3Client.send(
+    new GetObjectCommand({ Bucket: S3_BUCKET, Key: key }),
+  );
+  return response.Body!.transformToString('utf-8');
+}
+
+export async function clearS3Bucket() {
+  const objects = await s3Client.send(
+    new ListObjectsV2Command({ Bucket: S3_BUCKET }),
+  );
+
+  if (!objects.Contents || objects.Contents.length === 0) {
+    return;
+  }
+
+  const keys: string[] = objects.Contents.map((obj) => obj.Key).filter(
+    (key): key is string => key !== undefined,
+  );
+
+  if (keys.length === 0) {
+    return;
+  }
+
+  await s3Client.send(
+    new DeleteObjectsCommand({
+      Bucket: S3_BUCKET,
+      Delete: {
+        Objects: keys.map((key) => ({ Key: key })),
+      },
+    }),
+  );
+}
+
+export async function purgeQueue() {
+  try {
+    const urlResult = await sqsClient.send(
+      new GetQueueUrlCommand({ QueueName: SQS_QUEUE_NAME }),
+    );
+    await sqsClient.send(
+      new PurgeQueueCommand({ QueueUrl: urlResult.QueueUrl }),
+    );
+  } catch {
+    // Queue may not exist yet; ignore
+  }
+}
+
+export async function waitForExpenses(
+  app: INestApplication,
+  groupId: string,
+  expectedCount: number,
+  accessToken: string,
+  timeoutMs = 10000,
+): Promise<unknown[]> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const expenses: unknown[] = await spec()
+      .get('/expense/group/{groupId}')
+      .withPathParams('groupId', groupId)
+      .withBearerToken(accessToken)
+      .returns('res.body');
+
+    if (Array.isArray(expenses) && expenses.length >= expectedCount) {
+      return expenses;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+
+  throw new Error(
+    `Timed out waiting for ${expectedCount} expenses in group ${groupId}`,
+  );
 }
 
 export interface TestUser {

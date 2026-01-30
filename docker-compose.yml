@@ -22,5 +22,14 @@ services:
       - '1025:1025'
       - '1080:1080'
 
+  aws-mock:
+    image: 'localstack/localstack'
+    ports:
+      - '4566:4566'
+      - '4510-4559:4510-4559'
+    environment:
+      - DEBUG=1
+      - SERVICES=s3,sqs
+
 volumes:
   payment_splitter_db:
