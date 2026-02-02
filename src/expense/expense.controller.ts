@@ -15,12 +15,24 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiBearerAuth,
+  ApiAcceptedResponse,
+  ApiBadRequestResponse,
+  ApiBody,
+  ApiConsumes,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { ExpenseService } from './expense.service';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import {
   ExpenseUploadMessage,
-  UploadAcceptedResponse,
+  UploadAcceptedResponseDto,
   UploadExpensesParamsDto,
 } from './dto/upload-expenses.dto';
 import type { Request } from 'express';
@@ -29,6 +41,9 @@ import { S3Service } from 'src/infra/s3/s3.service';
 import { SqsService } from 'src/infra/sqs/sqs.service';
 import { CsvParserService } from './csv-parser.service';
 
+@ApiTags('Expense')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('expense')
 export class ExpenseController {
   private readonly logger = new Logger(ExpenseController.name);
@@ -41,18 +56,39 @@ export class ExpenseController {
   ) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Create a new expense' })
+  @ApiCreatedResponse({ description: 'Expense created with splits' })
   create(@Body() createExpenseDto: CreateExpenseDto, @Req() request: Request) {
     const user = request.user as JWTUser;
     return this.expenseService.create(createExpenseDto, user.id);
   }
 
   @Post('upload/:groupId')
-  @UseGuards(JwtAuthGuard)
   @HttpCode(202)
   @UseInterceptors(
     FileInterceptor('file', { limits: { fileSize: 1024 * 1024 } }),
   )
+  @ApiOperation({ summary: 'Upload expenses via CSV file' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'CSV file (max 1MB)',
+        },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiParam({ name: 'groupId', format: 'uuid' })
+  @ApiAcceptedResponse({
+    type: UploadAcceptedResponseDto,
+    description: 'Upload accepted for async processing',
+  })
+  @ApiBadRequestResponse({ description: 'CSV validation failed' })
   async uploadExpenses(
     @Param() params: UploadExpensesParamsDto,
     @UploadedFile(
@@ -64,7 +100,7 @@ export class ExpenseController {
     )
     file: Express.Multer.File,
     @Req() request: Request,
-  ): Promise<UploadAcceptedResponse> {
+  ): Promise<UploadAcceptedResponseDto> {
     const user = request.user as JWTUser;
     const csvContent = file.buffer.toString('utf-8');
 
@@ -113,7 +149,9 @@ export class ExpenseController {
   }
 
   @Get('group/:groupId')
-  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'List expenses for a group' })
+  @ApiParam({ name: 'groupId', format: 'uuid' })
+  @ApiOkResponse({ description: 'List of expenses' })
   listByGroup(@Param('groupId') groupId: string, @Req() request: Request) {
     const user = request.user as JWTUser;
     return this.expenseService.listByGroup(groupId, user.id);

@@ -12,6 +12,7 @@ async function bootstrap() {
     .setTitle('Payment Splitter API')
     .setDescription('API for splitting payments between users')
     .setVersion('1.0')
+    .addBearerAuth()
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory);

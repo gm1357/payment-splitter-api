@@ -1,6 +1,8 @@
+import { ApiProperty } from '@nestjs/swagger';
 import { IsUUID } from 'class-validator';
 
 export class UploadExpensesParamsDto {
+  @ApiProperty({ description: 'Group ID', format: 'uuid' })
   @IsUUID('4')
   groupId: string;
 }
@@ -51,7 +53,10 @@ export interface ExpenseUploadMessage {
   userId: string;
 }
 
-export interface UploadAcceptedResponse {
+export class UploadAcceptedResponseDto {
+  @ApiProperty({ example: 'Upload accepted for processing' })
   message: string;
+
+  @ApiProperty({ example: 'expenses/group-id/1234567890-upload.csv' })
   s3Key: string;
 }

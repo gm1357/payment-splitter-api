@@ -9,47 +9,66 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiTags,
+} from '@nestjs/swagger';
 import { GroupService } from './group.service';
 import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
 import { CreateGroupDto } from './dto/create-group.dto';
 import type { Request } from 'express';
 import { JWTUser } from 'src/auth/entity/jwt.entity';
 
+@ApiTags('Group')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 @Controller('group')
 export class GroupController {
   constructor(private readonly groupService: GroupService) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Create a new group' })
+  @ApiCreatedResponse({ description: 'Group created' })
   create(@Body() createGroupDto: CreateGroupDto, @Req() request: Request) {
     const user = request.user as JWTUser;
     return this.groupService.create(createGroupDto, user.id);
   }
 
   @Get('joined')
-  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'List groups the authenticated user has joined' })
+  @ApiOkResponse({ description: 'List of groups' })
   listUserJoinedGroups(@Req() request: Request) {
     const user = request.user as JWTUser;
     return this.groupService.listUserJoinedGroups(user.id);
   }
 
   @Post(':id/join')
-  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Join a group' })
+  @ApiParam({ name: 'id', description: 'Group ID', format: 'uuid' })
+  @ApiCreatedResponse({ description: 'Joined group' })
   joinGroup(@Param('id') groupId: string, @Req() request: Request) {
     const user = request.user as JWTUser;
     return this.groupService.joinGroup(groupId, user.id);
   }
 
   @Post(':id/leave')
-  @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Leave a group' })
+  @ApiParam({ name: 'id', description: 'Group ID', format: 'uuid' })
+  @ApiOkResponse({ description: 'Left group' })
   leaveGroup(@Param('id') groupId: string, @Req() request: Request) {
     const user = request.user as JWTUser;
     return this.groupService.leaveGroup(groupId, user.id);
   }
 
   @Get(':id/members')
-  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'List group members' })
+  @ApiParam({ name: 'id', description: 'Group ID', format: 'uuid' })
+  @ApiOkResponse({ description: 'List of group members' })
   listGroupMembers(@Param('id') groupId: string, @Req() request: Request) {
     const user = request.user as JWTUser;
     return this.groupService.listGroupMembers(groupId, user.id);
