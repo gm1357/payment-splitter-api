@@ -1,6 +1,6 @@
 {
   "name": "payment-splitter-api",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "",
   "author": "",
   "private": true,
@@ -30,6 +30,7 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.2.5",
+    "@nestjs/terminus": "^11.0.0",
     "@prisma/client": "^6.18.0",
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
