@@ -7,6 +7,7 @@ import {
   DeleteMessageCommand,
   CreateQueueCommand,
   GetQueueUrlCommand,
+  GetQueueAttributesCommand,
   Message,
 } from '@aws-sdk/client-sqs';
 
@@ -73,6 +74,15 @@ export class SqsService implements OnModuleInit {
       this.queueUrl = result.QueueUrl!;
       this.logger.log(`SQS queue "${this.queueName}" created`);
     }
+  }
+
+  async healthCheck(): Promise<void> {
+    await this.client.send(
+      new GetQueueAttributesCommand({
+        QueueUrl: this.queueUrl,
+        AttributeNames: ['QueueArn'],
+      }),
+    );
   }
 
   async sendMessage(body: object): Promise<void> {
