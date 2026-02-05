@@ -60,6 +60,10 @@ export class S3Service implements OnModuleInit {
     }
   }
 
+  async healthCheck(): Promise<void> {
+    await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
+  }
+
   async upload(
     key: string,
     body: Buffer | string,

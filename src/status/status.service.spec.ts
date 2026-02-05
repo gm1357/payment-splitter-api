@@ -1,8 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { ServiceUnavailableException } from '@nestjs/common';
 import { HealthCheckService } from '@nestjs/terminus';
 import { StatusService } from './status.service';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { S3Service } from 'src/infra/s3/s3.service';
+import { SqsService } from 'src/infra/sqs/sqs.service';
 
 describe('StatusService', () => {
   let service: StatusService;
@@ -11,8 +12,25 @@ describe('StatusService', () => {
     $queryRaw: jest.fn(),
   };
 
+  const mockS3Service = {
+    healthCheck: jest.fn(),
+  };
+
+  const mockSqsService = {
+    healthCheck: jest.fn(),
+  };
+
   const mockHealthCheckService = {
     check: jest.fn(),
+  };
+
+  const runIndicators = async (indicators) => {
+    const details = {};
+    for (const indicator of indicators) {
+      const result = await indicator();
+      Object.assign(details, result);
+    }
+    return { status: 'ok', details };
   };
 
   beforeEach(async () => {
@@ -20,6 +38,8 @@ describe('StatusService', () => {
       providers: [
         StatusService,
         { provide: PrismaService, useValue: mockPrismaService },
+        { provide: S3Service, useValue: mockS3Service },
+        { provide: SqsService, useValue: mockSqsService },
         { provide: HealthCheckService, useValue: mockHealthCheckService },
       ],
     }).compile();
@@ -30,16 +50,11 @@ describe('StatusService', () => {
   });
 
   describe('check', () => {
-    it('should return status ok when database is healthy', async () => {
-      mockHealthCheckService.check.mockImplementation(async (indicators) => {
-        const details = {};
-        for (const indicator of indicators) {
-          const result = await indicator();
-          Object.assign(details, result);
-        }
-        return { status: 'ok', details };
-      });
+    it('should return status ok when all services are healthy', async () => {
+      mockHealthCheckService.check.mockImplementation(runIndicators);
       mockPrismaService.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
+      mockS3Service.healthCheck.mockResolvedValue(undefined);
+      mockSqsService.healthCheck.mockResolvedValue(undefined);
 
       const result = await service.check();
 
@@ -58,16 +73,37 @@ describe('StatusService', () => {
       expect(result.details.database.responseTimeMs).toEqual(
         expect.any(Number),
       );
+      expect(result.details.s3.status).toBe('up');
+      expect(result.details.s3.responseTimeMs).toEqual(expect.any(Number));
+      expect(result.details.sqs.status).toBe('up');
+      expect(result.details.sqs.responseTimeMs).toEqual(expect.any(Number));
     });
 
     it('should throw when database is unhealthy', async () => {
-      mockHealthCheckService.check.mockImplementation(async (indicators) => {
-        for (const indicator of indicators) {
-          await indicator();
-        }
-      });
+      mockHealthCheckService.check.mockImplementation(runIndicators);
       mockPrismaService.$queryRaw.mockRejectedValue(
         new Error('Connection refused'),
+      );
+
+      await expect(service.check()).rejects.toThrow();
+    });
+
+    it('should throw when S3 is unhealthy', async () => {
+      mockHealthCheckService.check.mockImplementation(runIndicators);
+      mockPrismaService.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
+      mockS3Service.healthCheck.mockRejectedValue(
+        new Error('Bucket not found'),
+      );
+
+      await expect(service.check()).rejects.toThrow();
+    });
+
+    it('should throw when SQS is unhealthy', async () => {
+      mockHealthCheckService.check.mockImplementation(runIndicators);
+      mockPrismaService.$queryRaw.mockResolvedValue([{ '?column?': 1 }]);
+      mockS3Service.healthCheck.mockResolvedValue(undefined);
+      mockSqsService.healthCheck.mockRejectedValue(
+        new Error('Queue not found'),
       );
 
       await expect(service.check()).rejects.toThrow();
