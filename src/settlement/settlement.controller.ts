@@ -16,10 +16,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { SettlementService } from './settlement.service';
-import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateSettlementDto } from './dto/create-settlement.dto';
 import type { Request } from 'express';
-import { JWTUser } from 'src/auth/entity/jwt.entity';
+import { JWTUser } from '../auth/entity/jwt.entity';
 
 @ApiTags('Settlement')
 @ApiBearerAuth()

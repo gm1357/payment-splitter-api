@@ -7,11 +7,11 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { BalanceService } from './balance.service';
-import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BalanceResponseDto } from './dto/balance-response.dto';
 import { SettlementSuggestionDto } from './dto/settlement-suggestion.dto';
 import type { Request } from 'express';
-import { JWTUser } from 'src/auth/entity/jwt.entity';
+import { JWTUser } from '../auth/entity/jwt.entity';
 
 @ApiTags('Balance')
 @ApiBearerAuth()

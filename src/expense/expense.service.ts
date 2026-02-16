@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateExpenseDto } from './dto/create-expense.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import email from 'src/infra/email';
+import { PrismaService } from '../prisma/prisma.service';
+import email from '../infra/email';
 import { CsvParserService } from './csv-parser.service';
 import {
   BatchCreateResult,

@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { HealthCheckService, HealthIndicatorResult } from '@nestjs/terminus';
-import { PrismaService } from 'src/prisma/prisma.service';
-import { S3Service } from 'src/infra/s3/s3.service';
-import { SqsService } from 'src/infra/sqs/sqs.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { S3Service } from '../infra/s3/s3.service';
+import { SqsService } from '../infra/sqs/sqs.service';
 
 import { version } from '../../package.json';
 

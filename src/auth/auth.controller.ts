@@ -9,7 +9,7 @@ import {
 import type { Request as Req } from 'express';
 import { LocalAuthGuard } from './local-auth.guard';
 import { AuthService } from './auth.service';
-import { UserPublic } from 'src/user/entity/user.entity';
+import { UserPublic } from '../user/entity/user.entity';
 import { LoginDto, LoginResponseDto } from './dto/login.dto';
 
 @ApiTags('Auth')
