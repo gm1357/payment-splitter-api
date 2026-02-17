@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { CorsOptions } from '@nestjs/common/interfaces/external/cors-options.interface';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -16,6 +17,17 @@ async function bootstrap() {
     .build();
   const documentFactory = () => SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, documentFactory);
+
+  const corsOptions: CorsOptions = {
+    origin: process.env.FRONTEND_URL,
+    credentials: true,
+  };
+
+  if (process.env.NODE_ENV !== 'production') {
+    corsOptions.origin = true;
+  }
+
+  app.enableCors(corsOptions);
 
   await app.listen(process.env.PORT ?? 3000);
 }
