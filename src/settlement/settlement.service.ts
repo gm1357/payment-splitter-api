@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateSettlementDto } from './dto/create-settlement.dto';
-import { PrismaService } from 'src/prisma/prisma.service';
-import email from 'src/infra/email';
+import { PrismaService } from '../prisma/prisma.service';
+import email from '../infra/email';
 
 @Injectable()
 export class SettlementService {

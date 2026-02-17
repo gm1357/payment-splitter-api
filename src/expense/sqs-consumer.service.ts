@@ -4,8 +4,8 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { SqsService } from 'src/infra/sqs/sqs.service';
-import { S3Service } from 'src/infra/s3/s3.service';
+import { SqsService } from '../infra/sqs/sqs.service';
+import { S3Service } from '../infra/s3/s3.service';
 import { ExpenseService } from './expense.service';
 import { ExpenseUploadMessage } from './dto/upload-expenses.dto';
 

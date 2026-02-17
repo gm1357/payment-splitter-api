@@ -25,9 +25,8 @@ export class SqsService implements OnModuleInit {
       throw new Error('AWS_SQS_QUEUE_NAME environment variable is not set');
     }
     this.queueName = queueName;
-    this.pollWaitSeconds = this.configService.get<number>(
-      'AWS_SQS_POLL_WAIT_SECONDS',
-      20,
+    this.pollWaitSeconds = Number(
+      this.configService.get<number>('AWS_SQS_POLL_WAIT_SECONDS', 20),
     );
 
     this.client = new SQSClient({

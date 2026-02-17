@@ -1,8 +1,8 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { UserPublic } from 'src/user/entity/user.entity';
-import { UserService } from 'src/user/user.service';
+import { UserPublic } from '../user/entity/user.entity';
+import { UserService } from '../user/user.service';
 
 const SALT_ROUNDS = 10;
 

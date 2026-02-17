@@ -18,7 +18,7 @@ function getTransporter(): nodemailer.Transporter {
     const smtpConfig: SMTPTransport.Options = {
       host: process.env.EMAIL_SMTP_HOST,
       port: Number(process.env.EMAIL_SMTP_PORT),
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.EMAIL_SMTP_SECURE === 'true',
     };
 
     // Only set auth if credentials are provided

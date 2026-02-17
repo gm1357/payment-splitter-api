@@ -28,7 +28,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { ExpenseService } from './expense.service';
-import { JwtAuthGuard } from 'src/auth/jwt-auth.guard';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateExpenseDto } from './dto/create-expense.dto';
 import {
   ExpenseUploadMessage,
@@ -36,9 +36,9 @@ import {
   UploadExpensesParamsDto,
 } from './dto/upload-expenses.dto';
 import type { Request } from 'express';
-import { JWTUser } from 'src/auth/entity/jwt.entity';
-import { S3Service } from 'src/infra/s3/s3.service';
-import { SqsService } from 'src/infra/sqs/sqs.service';
+import { JWTUser } from '../auth/entity/jwt.entity';
+import { S3Service } from '../infra/s3/s3.service';
+import { SqsService } from '../infra/sqs/sqs.service';
 import { CsvParserService } from './csv-parser.service';
 
 @ApiTags('Expense')

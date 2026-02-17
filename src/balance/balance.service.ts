@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service';
 import { BalanceResponseDto } from './dto/balance-response.dto';
 import { SettlementSuggestionDto } from './dto/settlement-suggestion.dto';
 import { MemberBalanceDto } from './dto/member-balance.dto';
