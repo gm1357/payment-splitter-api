@@ -19,7 +19,7 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, documentFactory);
 
   const corsOptions: CorsOptions = {
-    origin: process.env.FRONTEND_URL,
+    origin: new RegExp(process.env.PRODUCTION_CORS_REGEX || ''),
     credentials: true,
   };
 
