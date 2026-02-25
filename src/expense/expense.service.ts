@@ -174,7 +174,7 @@ export class ExpenseService {
     // Email to Payer
     emailPromises.push(
       email.send({
-        from: 'Payment Splitter <noreply@paymentsplitter.com>',
+        from: `Payment Splitter <noreply@${process.env.EMAIL_DOMAIN}`,
         to: payerEmail,
         subject: `Expense added - ${groupName}`,
         text: `Hi ${payerName},
@@ -201,7 +201,7 @@ Thanks for using Payment Splitter!
 
       emailPromises.push(
         email.send({
-          from: 'Payment Splitter <noreply@paymentsplitter.com>',
+          from: `Payment Splitter <noreply@${process.env.EMAIL_DOMAIN}`,
           to: memberEmail,
           subject: `New expense - ${groupName}`,
           text: `Hi ${memberName},
@@ -469,7 +469,7 @@ Thanks for using Payment Splitter!
 
       emailPromises.push(
         email.send({
-          from: 'Payment Splitter <noreply@paymentsplitter.com>',
+          from: `Payment Splitter <noreply@${process.env.EMAIL_DOMAIN}`,
           to: userData.userEmail,
           subject: `${expenseCount} new expenses in "${groupName}"`,
           text: `Hi ${userData.userName},
