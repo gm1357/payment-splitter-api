@@ -103,7 +103,7 @@ export class SettlementService {
     const notes = settlement.notes || 'None';
 
     await email.send({
-      from: 'Payment Splitter <noreply@paymentsplitter.com>',
+      from: `Payment Splitter <noreply@${process.env.EMAIL_DOMAIN}`,
       to: payerEmail,
       subject: `Payment recorded - ${groupName}`,
       text: `Hi ${payerName},
@@ -119,7 +119,7 @@ Thanks for using Payment Splitter!
     });
 
     await email.send({
-      from: 'Payment Splitter <noreply@paymentsplitter.com>',
+      from: `Payment Splitter <noreply@${process.env.EMAIL_DOMAIN}`,
       to: receiverEmail,
       subject: `You received a payment - ${groupName}`,
       text: `Hi ${receiverName},

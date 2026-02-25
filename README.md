@@ -48,6 +48,7 @@ Required variables:
 
 - `DATABASE_URL` - PostgreSQL connection string
 - `JWT_SECRET` - Secret key for JWT signing
+- `EMAIL_DOMAIN` - Domain used for email addresses
 
 Email configuration (defaults work with MailCatcher for local dev):
 
