@@ -14,6 +14,7 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SqsConsumerService.name);
   private running = false;
   private abortController: AbortController | null = null;
+  private pollPromise: Promise<void> | null = null;
 
   constructor(
     private readonly sqsService: SqsService,
@@ -25,14 +26,15 @@ export class SqsConsumerService implements OnModuleInit, OnModuleDestroy {
     this.startPolling();
   }
 
-  onModuleDestroy() {
+  async onModuleDestroy() {
     this.running = false;
     this.abortController?.abort();
+    await this.pollPromise;
   }
 
   private startPolling() {
     this.running = true;
-    this.poll().catch((error: Error) => {
+    this.pollPromise = this.poll().catch((error: Error) => {
       this.logger.error(`Polling loop exited with error: ${error.message}`);
     });
   }

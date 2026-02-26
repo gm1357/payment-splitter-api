@@ -11,8 +11,9 @@ import {
 } from '@aws-sdk/client-s3';
 import {
   SQSClient,
-  PurgeQueueCommand,
   GetQueueUrlCommand,
+  DeleteQueueCommand,
+  CreateQueueCommand,
 } from '@aws-sdk/client-sqs';
 
 const EMAIL_HTTP_URL = `http://${process.env.EMAIL_HTTP_HOST}:${process.env.EMAIL_HTTP_PORT}`;
@@ -59,14 +60,21 @@ export async function createTestApp(): Promise<INestApplication> {
 export async function resetDatabase(app: INestApplication): Promise<void> {
   const prisma = app.get(PrismaService);
 
-  await prisma.$transaction([
-    prisma.expenseSplit.deleteMany(),
-    prisma.expense.deleteMany(),
-    prisma.settlement.deleteMany(),
-    prisma.groupMember.deleteMany(),
-    prisma.group.deleteMany(),
-    prisma.user.deleteMany(),
-  ]);
+  const tablenames = await prisma.$queryRaw<
+    Array<{ tablename: string }>
+  >`SELECT tablename FROM pg_tables WHERE schemaname='public'`;
+
+  const tables = tablenames
+    .map(({ tablename }) => tablename)
+    .filter((name) => name !== '_prisma_migrations')
+    .map((name) => `"public"."${name}"`)
+    .join(', ');
+
+  try {
+    await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${tables} CASCADE;`);
+  } catch (error) {
+    console.log({ error });
+  }
 }
 
 export async function deleteAllEmails() {
@@ -198,12 +206,16 @@ export async function purgeQueue() {
     const urlResult = await sqsClient.send(
       new GetQueueUrlCommand({ QueueName: SQS_QUEUE_NAME }),
     );
+    // Delete and recreate the queue to remove ALL messages including invisible
+    // (in-flight) ones. PurgeQueue and drain-based approaches cannot remove
+    // invisible messages, which can interfere with subsequent tests.
     await sqsClient.send(
-      new PurgeQueueCommand({ QueueUrl: urlResult.QueueUrl }),
+      new DeleteQueueCommand({ QueueUrl: urlResult.QueueUrl }),
     );
   } catch {
     // Queue may not exist yet; ignore
   }
+  await sqsClient.send(new CreateQueueCommand({ QueueName: SQS_QUEUE_NAME }));
 }
 
 export async function waitForExpenses(
