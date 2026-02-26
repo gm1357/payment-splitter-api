@@ -11,8 +11,9 @@ import {
 } from '@aws-sdk/client-s3';
 import {
   SQSClient,
-  PurgeQueueCommand,
   GetQueueUrlCommand,
+  DeleteQueueCommand,
+  CreateQueueCommand,
 } from '@aws-sdk/client-sqs';
 
 const EMAIL_HTTP_URL = `http://${process.env.EMAIL_HTTP_HOST}:${process.env.EMAIL_HTTP_PORT}`;
@@ -205,12 +206,16 @@ export async function purgeQueue() {
     const urlResult = await sqsClient.send(
       new GetQueueUrlCommand({ QueueName: SQS_QUEUE_NAME }),
     );
+    // Delete and recreate the queue to remove ALL messages including invisible
+    // (in-flight) ones. PurgeQueue and drain-based approaches cannot remove
+    // invisible messages, which can interfere with subsequent tests.
     await sqsClient.send(
-      new PurgeQueueCommand({ QueueUrl: urlResult.QueueUrl }),
+      new DeleteQueueCommand({ QueueUrl: urlResult.QueueUrl }),
     );
   } catch {
     // Queue may not exist yet; ignore
   }
+  await sqsClient.send(new CreateQueueCommand({ QueueName: SQS_QUEUE_NAME }));
 }
 
 export async function waitForExpenses(
